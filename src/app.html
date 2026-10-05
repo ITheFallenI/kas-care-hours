@@ -1,0 +1,1220 @@
+<title>Kas Care Hours</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
+<style>
+/* Layout: one-column phone app. Sticky week header, day-by-day log, bottom tab bar, big "Log care" button. */
+:root {
+  --bg: #f3f5f2;
+  --surface: #ffffff;
+  --ink: #1d2a26;
+  --muted: #5f6e69;
+  --line: #dde3df;
+  --accent: #2f6f5e;
+  --accent-ink: #ffffff;
+  --accent-soft: #e2efe9;
+  --extra: #8a5a12;
+  --extra-soft: #f6ecd9;
+  --good: #2c7a3f;
+  --good-soft: #e1f2e4;
+  --warn: #9a5b00;
+  --warn-soft: #fbecd2;
+  --bad: #a3322b;
+  --bad-soft: #f8e0dd;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Atkinson Hyperlegible", -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+  --radius: 14px;
+  --nav-h: 64px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121816; --surface: #1b2320; --ink: #e7eeeb; --muted: #9aaaa4; --line: #2c3833;
+    --accent: #6cc3a8; --accent-ink: #0d1a16; --accent-soft: #1f3a32;
+    --extra: #e2b467; --extra-soft: #3a2f1c;
+    --good: #7fd194; --good-soft: #1c3424; --warn: #f0b660; --warn-soft: #3b2e17; --bad: #f08c84; --bad-soft: #3d1f1d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121816; --surface: #1b2320; --ink: #e7eeeb; --muted: #9aaaa4; --line: #2c3833;
+  --accent: #6cc3a8; --accent-ink: #0d1a16; --accent-soft: #1f3a32;
+  --extra: #e2b467; --extra-soft: #3a2f1c;
+  --good: #7fd194; --good-soft: #1c3424; --warn: #f0b660; --warn-soft: #3b2e17; --bad: #f08c84; --bad-soft: #3d1f1d;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 17px; line-height: 1.45;
+  -webkit-tap-highlight-color: transparent;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+
+#app { max-width: 560px; margin: 0 auto; padding-inline: 16px; padding-block: 0 calc(var(--nav-h) + 96px + env(safe-area-inset-bottom, 0px)); }
+
+header.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--bg); padding-block: 14px 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+header.top h1 { font-family: var(--font-display); font-weight: 800; font-size: 1.55rem; margin: 0; letter-spacing: -0.01em; flex: 1; min-width: 0; text-wrap: balance; }
+header.top .sub { display: block; font-family: var(--font-body); font-weight: 400; font-size: .9rem; color: var(--muted); letter-spacing: 0; }
+
+.iconbtn {
+  width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line);
+  background: var(--surface); display: inline-grid; place-items: center; font-size: 1.2rem; flex: none;
+}
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 48px; padding-inline: 18px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--surface); font-weight: 700;
+}
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.danger { color: var(--bad); border-color: var(--bad); background: transparent; }
+.btn.danger.armed { background: var(--bad); color: var(--surface); }
+.btn.block { width: 100%; }
+.btn.small { min-height: 38px; padding-inline: 12px; font-size: .92rem; }
+.linkbtn { background: none; border: 0; color: var(--accent); font-weight: 700; padding: 8px 4px; }
+
+.stack { display: flex; flex-direction: column; gap: 12px; }
+.row { display: flex; align-items: center; gap: 10px; }
+.row.wrap { flex-wrap: wrap; }
+.grow { flex: 1; min-width: 0; }
+
+.summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-block: 4px 14px; }
+.summary div { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; min-width: 0; }
+.summary b { display: block; font-family: var(--font-display); font-size: 1.35rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.summary span { font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+
+.label { font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; font-weight: 700; margin: 18px 0 8px; }
+
+.clientstrip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 6px; scrollbar-width: none; }
+.clientstrip .cs { flex: none; background: var(--accent-soft); border-radius: 999px; padding: 6px 12px; font-size: .92rem; border: 0; }
+.clientstrip .cs b { font-variant-numeric: tabular-nums; }
+
+.day { margin-top: 14px; }
+.dayhead { display: flex; align-items: baseline; gap: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.dayhead h3 { margin: 0; font-size: 1rem; font-weight: 700; flex: 1; }
+.dayhead.today h3::after { content: "Today"; margin-left: 8px; font-size: .72rem; background: var(--accent); color: var(--accent-ink); padding: 2px 8px; border-radius: 999px; vertical-align: 2px; letter-spacing: .04em; }
+.dayhead .tot { color: var(--muted); font-size: .9rem; font-variant-numeric: tabular-nums; }
+.empty-day { color: var(--muted); font-size: .9rem; padding: 8px 0; }
+
+.entry {
+  display: flex; gap: 12px; align-items: center; width: 100%; text-align: left;
+  background: none; border: 0; border-bottom: 1px solid var(--line); padding: 12px 2px;
+}
+.entry .what { flex: 1; min-width: 0; }
+.entry .who { font-weight: 700; }
+.entry .meta { color: var(--muted); font-size: .9rem; }
+.entry .amt { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.entry .amt small { display: block; color: var(--muted); font-size: .8rem; }
+.tag { display: inline-block; font-size: .72rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; letter-spacing: .03em; vertical-align: 1px; }
+.tag.extra { background: var(--extra-soft); color: var(--extra); }
+.tag.billed { background: var(--accent-soft); color: var(--accent); }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.list .item {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  background: var(--surface); border: 0; border-bottom: 1px solid var(--line); padding: 14px 16px;
+}
+.list .item:first-child { border-radius: var(--radius) var(--radius) 0 0; }
+.list .item:last-child { border-bottom: 0; border-radius: 0 0 var(--radius) var(--radius); }
+.list .item:only-child { border-radius: var(--radius); }
+.list .item .t { font-weight: 700; }
+.list .item .s { color: var(--muted); font-size: .9rem; }
+.list .item .r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chev { color: var(--muted); }
+
+.pill { display: inline-block; font-size: .78rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.pill.paid { background: var(--good-soft); color: var(--good); }
+.pill.part { background: var(--warn-soft); color: var(--warn); }
+.pill.sent { background: var(--accent-soft); color: var(--accent); }
+.pill.overdue, .pill.outstanding { background: var(--bad-soft); color: var(--bad); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  min-height: 44px; padding: 8px 14px; border-radius: 12px; border: 1.5px solid var(--line);
+  background: var(--surface); font-weight: 700; text-align: left;
+}
+.chip small { display: block; font-weight: 400; color: var(--muted); font-size: .8rem; }
+.chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--line); border-radius: 12px; padding: 3px; gap: 3px; }
+.seg button { border: 0; background: transparent; min-height: 42px; border-radius: 10px; font-weight: 700; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field > span { font-weight: 700; font-size: .95rem; }
+.field .hint { color: var(--muted); font-size: .85rem; font-weight: 400; }
+input[type=text], input[type=number], input[type=date], select, textarea {
+  width: 100%; min-height: 48px; border: 1.5px solid var(--line); border-radius: 12px;
+  background: var(--surface); padding: 10px 12px;
+}
+textarea { min-height: 72px; resize: vertical; }
+input:focus, select:focus, textarea:focus { border-color: var(--accent); outline: none; }
+.stepper { display: grid; grid-template-columns: 56px 1fr 56px; gap: 8px; }
+.stepper input { text-align: center; font-size: 1.3rem; font-weight: 700; }
+.stepper button { border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); font-size: 1.5rem; }
+.check { display: flex; gap: 10px; align-items: center; min-height: 44px; }
+.check input { width: 22px; height: 22px; accent-color: var(--accent); }
+
+.fab {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--nav-h) + 14px + env(safe-area-inset-bottom, 0px)); z-index: 6;
+  min-height: 56px; padding-inline: 26px; border-radius: 999px; border: 0;
+  background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 1.1rem;
+  box-shadow: 0 6px 20px rgba(20, 50, 40, .28);
+}
+nav.tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
+  background: var(--surface); border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+nav.tabs .in { max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); height: var(--nav-h); }
+nav.tabs button { border: 0; background: none; color: var(--muted); font-size: .8rem; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+nav.tabs button svg { width: 24px; height: 24px; }
+nav.tabs button[aria-current="page"] { color: var(--accent); }
+
+.sheet-wrap { position: fixed; inset: 0; z-index: 20; background: rgba(10, 20, 16, .45); display: flex; align-items: flex-end; justify-content: center; }
+.sheet {
+  background: var(--bg); width: 100%; max-width: 560px; max-height: 92%; overflow-y: auto;
+  border-radius: 20px 20px 0 0; padding-inline: 16px; padding-block: 8px calc(24px + env(safe-area-inset-bottom, 0px));
+}
+.sheet .grab { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 6px auto 4px; }
+.sheet h2 { font-family: var(--font-display); font-weight: 800; font-size: 1.35rem; margin: 6px 0 14px; }
+.sheet .actions { display: flex; gap: 10px; margin-top: 18px; }
+.sheet .actions .btn { flex: 1; }
+
+.lines { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.lines td { padding: 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.lines td:last-child { text-align: right; white-space: nowrap; padding-left: 10px; }
+.lines tr:last-child td { border-bottom: 0; }
+.lines tr.total td { font-weight: 700; border-bottom: 0; font-size: 1.05rem; }
+
+.bars { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; align-items: end; height: 110px; padding: 12px 12px 0; }
+.bars .b { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; min-width: 0; }
+.bars .b i { display: block; width: 100%; max-width: 28px; background: var(--accent); border-radius: 5px 5px 2px 2px; min-height: 2px; }
+.bars .b.cur i { background: var(--accent); opacity: 1; }
+.bars .b:not(.cur) i { opacity: .55; }
+.bars .b span { font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.barlabels { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; padding: 4px 12px 12px; }
+.barlabels span { font-size: .7rem; color: var(--muted); text-align: center; white-space: nowrap; overflow: hidden; }
+
+.welcome { padding-block: 28px; }
+.welcome h1 { font-family: var(--font-display); font-weight: 800; font-size: 2rem; margin: 0 0 8px; text-wrap: balance; }
+.welcome p { color: var(--muted); margin: 0 0 18px; max-width: 34em; }
+.note { background: var(--warn-soft); color: var(--ink); border-radius: 12px; padding: 10px 12px; font-size: .92rem; }
+.muted { color: var(--muted); }
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 30;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 14px; font-weight: 700; font-size: .95rem; text-align: center;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .2);
+  max-width: calc(100% - 32px);
+}
+.receipt { display: flex; gap: 12px; align-items: center; }
+.thumb { width: 96px; height: 96px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); padding: 0; background: var(--surface); flex: none; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumbs { display: flex; flex-wrap: wrap; gap: 10px; }
+.tag.receipt { border: 1px solid var(--line); color: var(--muted); }
+.viewer {
+  position: fixed; inset: 0; z-index: 40; background: rgba(0, 0, 0, .92);
+  display: flex; flex-direction: column; gap: 12px;
+  padding-inline: 16px; padding-block: calc(env(safe-area-inset-top, 0px) + 12px) calc(env(safe-area-inset-bottom, 0px) + 16px);
+}
+.viewer img { flex: 1; min-height: 0; width: 100%; object-fit: contain; }
+pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-family: var(--font-body); font-size: .9rem; margin: 0; max-height: 220px; overflow: auto; }
+@media (prefers-reduced-motion: no-preference) {
+  .sheet { animation: rise .22s ease-out; }
+  @keyframes rise { from { transform: translateY(40px); opacity: .6; } to { transform: none; opacity: 1; } }
+}
+</style>
+
+<div id="app"></div>
+<nav class="tabs" id="tabs" hidden>
+  <div class="in">
+    <button data-nav="week" id="nav-week"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Week</button>
+    <button data-nav="clients" id="nav-clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.8.7 3 2.4 3.5 5.2"/></svg>Clients</button>
+    <button data-nav="invoices" id="nav-invoices"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h7"/></svg>Invoices</button>
+    <button data-nav="more" id="nav-more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>More</button>
+  </div>
+</nav>
+<button class="fab" id="fab" data-action="log-new" hidden>+ Log care</button>
+<div id="sheet-root"></div>
+<div id="toast-root"></div>
+<div id="photo-root"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- storage ----------
+  var KEY = "kasHours.v1";
+  var state = null;
+
+  function blankState() {
+    return { version: 1, clients: [], carers: [], entries: [], invoices: [], settings: { dueDays: 7 } };
+  }
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) { state = normalise(JSON.parse(raw)); return; }
+    } catch (e) {}
+    state = null;
+  }
+  function normalise(s) {
+    var b = blankState();
+    s = s || {};
+    b.clients = Array.isArray(s.clients) ? s.clients : [];
+    b.carers = Array.isArray(s.carers) ? s.carers : [];
+    b.entries = Array.isArray(s.entries) ? s.entries : [];
+    b.invoices = Array.isArray(s.invoices) ? s.invoices : [];
+    b.settings = Object.assign(b.settings, s.settings || {});
+    b.clients.forEach(function (c) { c.rates = Array.isArray(c.rates) ? c.rates : []; if (!c.nextInvoiceNo) c.nextInvoiceNo = 1; });
+    b.invoices.forEach(function (i) { i.payments = Array.isArray(i.payments) ? i.payments : []; });
+    return b;
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast("Couldn't save on this phone. Make a backup from More."); }
+  }
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+
+  // ---------- receipt photos (IndexedDB: photos are too big for localStorage) ----------
+  var photoDB = null, photoCache = {};
+  function openDB() {
+    if (!photoDB) photoDB = new Promise(function (res, rej) {
+      try {
+        var r = indexedDB.open("kasHoursPhotos", 1);
+        r.onupgradeneeded = function () { r.result.createObjectStore("photos"); };
+        r.onsuccess = function () { res(r.result); };
+        r.onerror = function () { rej(r.error); };
+      } catch (e) { rej(e); }
+    });
+    return photoDB;
+  }
+  function photoOp(mode, fn) {
+    return openDB().then(function (d) {
+      return new Promise(function (res, rej) {
+        var tx = d.transaction("photos", mode), req = fn(tx.objectStore("photos"));
+        tx.oncomplete = function () { res(req && req.result); };
+        tx.onerror = function () { rej(tx.error); };
+      });
+    });
+  }
+  function putPhoto(id, data) { photoCache[id] = data; return photoOp("readwrite", function (st) { st.put(data, id); }); }
+  function getPhoto(id) {
+    if (photoCache[id]) return Promise.resolve(photoCache[id]);
+    return photoOp("readonly", function (st) { return st.get(id); }).then(function (v) { if (v) photoCache[id] = v; return v; });
+  }
+  function delPhoto(id) { delete photoCache[id]; return photoOp("readwrite", function (st) { st.delete(id); }).catch(function () {}); }
+  function clearPhotos() { photoCache = {}; return photoOp("readwrite", function (st) { st.clear(); }).catch(function () {}); }
+  function allPhotos() {
+    var out = {};
+    return photoOp("readonly", function (st) {
+      var req = st.openCursor();
+      req.onsuccess = function () { var c = req.result; if (c) { out[c.key] = c.value; c.continue(); } };
+    }).then(function () { return out; });
+  }
+  function fillPhotos(root) {
+    (root || document).querySelectorAll("img[data-photo]").forEach(function (img) {
+      if (img.getAttribute("src")) return;
+      getPhoto(img.dataset.photo).then(function (v) { if (v) img.src = v; else img.alt = "Photo missing"; }).catch(function () { img.alt = "Photo missing"; });
+    });
+  }
+  function shrinkImage(file) {
+    return new Promise(function (res, rej) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var max = 1400, k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+        var c = document.createElement("canvas");
+        c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        res(c.toDataURL("image/jpeg", 0.72));
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); rej(new Error("not an image")); };
+      img.src = url;
+    });
+  }
+  function dataURLToFile(data, name) {
+    var parts = data.split(","), mime = (parts[0].match(/:(.*?);/) || [])[1] || "image/jpeg", bin = atob(parts[1]), arr = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new File([arr], name, { type: mime });
+  }
+  function openViewer(src, name) {
+    var root = document.getElementById("photo-root");
+    root.dataset.src = src; root.dataset.name = name || "receipt.jpg";
+    root.innerHTML = '<div class="viewer" data-action="photo-close" role="dialog" aria-label="Receipt photo"><img src="' + src + '" alt="Receipt photo">' +
+      '<div class="row"><button class="btn grow" data-action="photo-close">Close</button><button class="btn primary grow" data-action="photo-share">Share</button></div></div>';
+  }
+  function closeViewer() { var root = document.getElementById("photo-root"); root.innerHTML = ""; delete root.dataset.src; }
+  function sharePhoto() {
+    var root = document.getElementById("photo-root");
+    try {
+      var file = dataURLToFile(root.dataset.src, root.dataset.name);
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file] }).catch(function () {}); return; }
+    } catch (e) {}
+    toast("Sharing isn't available here. Press and hold the photo to save it.");
+  }
+
+  // ---------- helpers ----------
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function iso(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function parse(s) { var p = String(s).split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function today() { return iso(new Date()); }
+  function addDays(s, n) { var d = parse(s); d.setDate(d.getDate() + n); return iso(d); }
+  function weekStart(s) { var d = parse(s); var wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); return iso(d); }
+  var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var MONTH = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  var DAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  function ord(n) { var s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+  function fmtShort(s) { var d = parse(s); return d.getDate() + " " + MON[d.getMonth()]; }
+  function fmtDay(s) { var d = parse(s); return DAY[d.getDay()] + " " + d.getDate() + " " + MON[d.getMonth()]; }
+  function fmtUK(s) { var d = parse(s); return pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear(); }
+  function money(n) { n = Math.round((+n || 0) * 100) / 100; var neg = n < 0; n = Math.abs(n); var s = n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ","); return (neg ? "-£" : "£") + s; }
+  function moneyShort(n) { n = +n || 0; return Number.isInteger(n) ? "£" + n : money(n); }
+  function num(n) { n = Math.round((+n || 0) * 100) / 100; return String(n); }
+  function hrs(n) { n = +n || 0; return num(n) + (n === 1 ? " hr" : " hrs"); }
+  var UNIT = { hour: ["hour", "hours", "hr"], session: ["session", "sessions", "session"], visit: ["visit", "visits", "visit"], fixed: ["item", "items", "item"] };
+  function unitWord(u, q) { var w = UNIT[u] || UNIT.hour; return q === 1 ? w[0] : w[1]; }
+  function qtyText(e) { if (e.unit === "hour") return hrs(e.qty); return num(e.qty) + " " + unitWord(e.unit, +e.qty); }
+
+  function client(id) { return state.clients.find(function (c) { return c.id === id; }); }
+  function invoice(id) { return state.invoices.find(function (i) { return i.id === id; }); }
+  function clientName(id) { var c = client(id); return c ? c.name : "Unknown client"; }
+
+  function carersBilled(e) { return 1 + (e.billOthers && e.workedWith ? e.workedWith.length : 0); }
+  function entryValue(e) {
+    if (e.kind === "extra") return +e.amount || 0;
+    return (+e.qty || 0) * (+e.price || 0) * carersBilled(e);
+  }
+  function entryHours(e) { return e.kind === "care" && e.unit === "hour" ? (+e.qty || 0) : 0; }
+
+  function paidSum(inv) { return inv.payments.reduce(function (a, p) { return a + (+p.amount || 0); }, 0); }
+  function invStatus(inv) {
+    var paid = paidSum(inv), bal = inv.total - paid;
+    if (bal <= 0.004) return { key: "paid", text: "Paid" };
+    if (inv.outstanding) return { key: "outstanding", text: "Outstanding" };
+    if (inv.dueDate && inv.dueDate < today()) return { key: "overdue", text: paid > 0 ? "Part paid, overdue" : "Overdue" };
+    if (paid > 0) return { key: "part", text: "Part paid" };
+    return { key: "sent", text: "Waiting" };
+  }
+
+  function toast(msg) {
+    var root = document.getElementById("toast-root");
+    root.innerHTML = '<div class="toast" role="status">' + esc(msg) + "</div>";
+    clearTimeout(toast.t);
+    toast.t = setTimeout(function () { root.innerHTML = ""; }, 2200);
+  }
+  function copyText(text) {
+    var done = function () { toast("Copied. Paste it into your invoice."); };
+    try {
+      navigator.clipboard.writeText(text).then(done, function () { selectFallback(); });
+    } catch (e) { selectFallback(); }
+    function selectFallback() {
+      var pre = document.querySelector("pre.copytext");
+      if (pre) { var r = document.createRange(); r.selectNodeContents(pre); var s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("Text selected. Tap Copy."); }
+    }
+  }
+
+  // ---------- routing ----------
+  var view = { name: "week", week: weekStart(today()), id: null, filter: "unpaid" };
+  function go(name, id) { view.name = name; view.id = id || null; window.scrollTo(0, 0); render(); }
+
+  // ---------- render ----------
+  function render() {
+    var app = document.getElementById("app");
+    var tabs = document.getElementById("tabs"), fab = document.getElementById("fab");
+    if (!state) { tabs.hidden = true; fab.hidden = true; app.innerHTML = renderWelcome(); return; }
+    tabs.hidden = false;
+    fab.hidden = !(view.name === "week" || view.name === "client");
+    var top = view.name === "client" || view.name === "invoice" ? (view.name === "client" ? "clients" : "invoices") : view.name;
+    ["week", "clients", "invoices", "more"].forEach(function (n) {
+      var b = document.getElementById("nav-" + n);
+      if (n === top) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+    });
+    var html = "";
+    if (view.name === "week") html = renderWeek();
+    else if (view.name === "clients") html = renderClients();
+    else if (view.name === "client") html = renderClient(view.id);
+    else if (view.name === "invoices") html = renderInvoices();
+    else if (view.name === "invoice") html = renderInvoice(view.id);
+    else html = renderMore();
+    app.innerHTML = html;
+    fillPhotos(app);
+  }
+
+  function renderWelcome() {
+    return '<div class="welcome">' +
+      '<h1>Care hours, logged as you go</h1>' +
+      '<p>Add your clients, log each visit when you finish it, and see every client\'s hours by week. When you send an invoice, tick those hours off so you always know what is billed and what has been paid.</p>' +
+      '<div class="stack">' +
+      '<button class="btn primary block" data-action="start-fresh">Start with my clients</button>' +
+      '<button class="btn block" data-action="restore-open">Load a setup or backup file</button>' +
+      '<button class="btn block" data-action="start-example">Try it with example clients</button>' +
+      '</div></div>';
+  }
+
+  function weekEntries(ws) {
+    var we = addDays(ws, 6);
+    return state.entries.filter(function (e) { return e.date >= ws && e.date <= we; });
+  }
+
+  function renderWeek() {
+    var ws = view.week, we = addDays(ws, 6), t = today();
+    var list = weekEntries(ws);
+    var totalH = 0, totalV = 0, extras = 0, byClient = {};
+    list.forEach(function (e) {
+      totalH += entryHours(e); totalV += entryValue(e); if (e.kind === "extra") extras += entryValue(e);
+      var b = byClient[e.clientId] || (byClient[e.clientId] = { h: 0, v: 0, n: 0 });
+      b.h += entryHours(e); b.v += entryValue(e); b.n++;
+    });
+    var isThis = ws === weekStart(t);
+    var title = isThis ? "This week" : (ws === addDays(weekStart(t), -7) ? "Last week" : "Week of " + fmtShort(ws));
+    var h = '<header class="top">' +
+      '<button class="iconbtn" data-action="week-prev" aria-label="Previous week">&#8249;</button>' +
+      '<h1>' + esc(title) + '<span class="sub">' + fmtShort(ws) + " to " + fmtShort(we) + "</span></h1>" +
+      (isThis ? "" : '<button class="btn small" data-action="week-today">Today</button>') +
+      '<button class="iconbtn" data-action="week-next" aria-label="Next week">&#8250;</button>' +
+      "</header>";
+    h += '<div class="summary"><div><b>' + num(totalH) + '</b><span>Hours</span></div><div><b>' + moneyShort(Math.round(totalV)) + '</b><span>Earned</span></div><div><b>' + moneyShort(Math.round(extras)) + '</b><span>Extras</span></div></div>';
+    var ids = Object.keys(byClient).sort(function (a, b) { return byClient[b].v - byClient[a].v; });
+    if (ids.length) {
+      h += '<div class="clientstrip">' + ids.map(function (id) {
+        var b = byClient[id];
+        return '<button class="cs" data-action="open-client" data-id="' + id + '">' + esc(clientName(id)) + " <b>" + (b.h ? num(b.h) + "h" : money(b.v)) + "</b></button>";
+      }).join("") + "</div>";
+    }
+    for (var i = 0; i < 7; i++) {
+      var d = addDays(ws, i);
+      var de = list.filter(function (e) { return e.date === d; }).sort(function (a, b) { return (a.createdAt || 0) - (b.createdAt || 0); });
+      var dh = de.reduce(function (a, e) { return a + entryHours(e); }, 0);
+      h += '<section class="day"><div class="dayhead' + (d === t ? " today" : "") + '"><h3>' + fmtDay(d) + '</h3><span class="tot">' + (de.length ? (dh ? hrs(dh) : "") : "") + "</span>" +
+        '<button class="linkbtn" data-action="log-new" data-date="' + d + '" aria-label="Log care on ' + fmtDay(d) + '">+ Add</button></div>';
+      if (!de.length) h += '<div class="empty-day">Nothing logged</div>';
+      de.forEach(function (e) { h += entryRow(e, false); });
+      h += "</section>";
+    }
+    return h;
+  }
+
+  function entryRow(e, showDate, hideClient) {
+    var meta = [];
+    if (showDate) meta.push(fmtShort(e.date));
+    if (e.kind === "extra") { if (!hideClient) meta.push(esc(e.description || "Extra")); }
+    else { if (!hideClient) meta.push(esc(e.label || "Care")); meta.push(qtyText(e)); }
+    if (e.workedWith && e.workedWith.length) meta.push("with " + esc(e.workedWith.join(", ")));
+    var tags = "";
+    if (e.kind === "extra") tags += ' <span class="tag extra">Extra</span>';
+    if (e.photoId) tags += ' <span class="tag receipt">Receipt</span>';
+    if (e.invoiceId) { var inv = invoice(e.invoiceId); if (inv) tags += ' <span class="tag billed">Inv ' + esc(inv.number) + "</span>"; }
+    var sub = e.kind === "care" && carersBilled(e) > 1 ? "<small>" + carersBilled(e) + " carers</small>" : (e.note ? "<small>note</small>" : "");
+    return '<button class="entry" data-action="edit-entry" data-id="' + e.id + '">' +
+      '<span class="what"><span class="who">' + (hideClient ? (e.kind === "extra" ? esc(e.description || "Extra") : esc(e.label || "Care")) : esc(clientName(e.clientId))) + "</span>" + tags +
+      '<br><span class="meta">' + meta.join(" · ") + "</span></span>" +
+      '<span class="amt">' + money(entryValue(e)) + sub + "</span></button>";
+  }
+
+  function unbilled(cid) { return state.entries.filter(function (e) { return e.clientId === cid && !e.invoiceId; }); }
+
+  function renderClients() {
+    var active = state.clients.filter(function (c) { return !c.archived; }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+    var archived = state.clients.filter(function (c) { return c.archived; });
+    var h = '<header class="top"><h1>Clients</h1><button class="btn small primary" data-action="client-new">+ Add client</button></header>';
+    if (!active.length) h += '<p class="muted">No clients yet. Add your first client to start logging hours.</p>';
+    else {
+      h += '<div class="list card">' + active.map(function (c) {
+        var u = unbilled(c.id), uh = 0, uv = 0;
+        u.forEach(function (e) { uh += entryHours(e); uv += entryValue(e); });
+        var rates = c.rates.map(function (r) { return moneyShort(r.price) + "/" + (UNIT[r.unit] || UNIT.hour)[2]; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(", ");
+        return '<button class="item" data-action="open-client" data-id="' + c.id + '"><span class="grow"><span class="t">' + esc(c.name) + "</span><br>" +
+          '<span class="s">' + (c.careFor ? "Care for " + esc(c.careFor) + " · " : "") + esc(rates || "No rates yet") + "</span></span>" +
+          '<span class="r">' + (u.length ? "<b>" + money(uv) + '</b><br><span class="s">' + (uh ? hrs(uh) + " " : "") + "to invoice</span>" : '<span class="s">All invoiced</span>') + "</span>" +
+          '<span class="chev">&#8250;</span></button>';
+      }).join("") + "</div>";
+    }
+    if (archived.length) {
+      h += '<div class="label">Past clients</div><div class="list card">' + archived.map(function (c) {
+        return '<button class="item" data-action="open-client" data-id="' + c.id + '"><span class="grow"><span class="t">' + esc(c.name) + '</span></span><span class="chev">&#8250;</span></button>';
+      }).join("") + "</div>";
+    }
+    return h;
+  }
+
+  function renderClient(id) {
+    var c = client(id);
+    if (!c) return '<p>Client not found.</p>';
+    var u = unbilled(id).sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    var uh = 0, uv = 0; u.forEach(function (e) { uh += entryHours(e); uv += entryValue(e); });
+    var h = '<header class="top"><button class="iconbtn" data-nav="clients" aria-label="Back to clients">&#8249;</button><h1>' + esc(c.name) +
+      '<span class="sub">' + (c.careFor ? "Care for " + esc(c.careFor) : "Next invoice No. " + pad3(c.nextInvoiceNo)) + "</span></h1>" +
+      '<button class="btn small" data-action="client-edit" data-id="' + id + '">Edit</button></header>';
+    h += '<div class="summary"><div><b>' + num(uh) + '</b><span>Hrs unbilled</span></div><div><b>' + moneyShort(Math.round(uv)) + '</b><span>Unbilled</span></div><div><b>' + pad3(c.nextInvoiceNo) + '</b><span>Next No.</span></div></div>';
+    // last 8 weeks
+    var ws0 = weekStart(today()), weeks = [];
+    for (var i = 7; i >= 0; i--) {
+      var ws = addDays(ws0, -7 * i), we = addDays(ws, 6);
+      var hh = state.entries.filter(function (e) { return e.clientId === id && e.date >= ws && e.date <= we; }).reduce(function (a, e) { return a + entryHours(e); }, 0);
+      weeks.push({ ws: ws, h: hh });
+    }
+    var max = Math.max.apply(null, weeks.map(function (w) { return w.h; }).concat([1]));
+    h += '<div class="label">Hours per week</div><div class="card"><div class="bars">' + weeks.map(function (w, i) {
+      return '<div class="b' + (i === 7 ? " cur" : "") + '"><span>' + (w.h ? num(w.h) : "") + '</span><i style="height:' + Math.round((w.h / max) * 80) + 'px"></i></div>';
+    }).join("") + '</div><div class="barlabels">' + weeks.map(function (w, i) { var d0 = parse(w.ws); return "<span>" + (i === 7 ? "Now" : d0.getDate() + "/" + (d0.getMonth() + 1)) + "</span>"; }).join("") + "</div></div>";
+    h += '<div class="row" style="margin-top:14px"><button class="btn primary grow" data-action="mark-invoiced" data-id="' + id + '"' + (u.length ? "" : " disabled") + '>Mark hours as invoiced</button></div>';
+    h += '<div class="label">Not invoiced yet (' + u.length + ")</div>";
+    if (!u.length) h += '<p class="muted">Everything logged for ' + esc(c.name) + " is on an invoice.</p>";
+    else u.slice().reverse().forEach(function (e) { h += entryRow(e, true, true); });
+    var invs = state.invoices.filter(function (iv) { return iv.clientId === id; }).sort(function (a, b) { return b.date < a.date ? -1 : 1; });
+    h += '<div class="label">Invoices</div>';
+    if (!invs.length) h += '<p class="muted">No invoices recorded yet.</p>';
+    else h += '<div class="list card">' + invs.map(invoiceRow).join("") + "</div>";
+    return h;
+  }
+  function pad3(n) { n = String(n); while (n.length < 3) n = "0" + n; return n; }
+
+  function invoiceRow(inv) {
+    var st = invStatus(inv), bal = inv.total - paidSum(inv);
+    return '<button class="item" data-action="open-invoice" data-id="' + inv.id + '"><span class="grow"><span class="t">' + esc(clientName(inv.clientId)) + " · No. " + esc(inv.number) + '</span><br><span class="s">' + fmtShort(inv.date) + (inv.from ? " · " + fmtShort(inv.from) + " to " + fmtShort(inv.to) : "") + "</span></span>" +
+      '<span class="r"><b>' + money(inv.total) + '</b><br><span class="pill ' + st.key + '">' + (st.key === "paid" ? "Paid" : st.key === "part" ? money(bal) + " left" : st.text) + "</span></span></button>";
+  }
+
+  function renderInvoices() {
+    var all = state.invoices.slice().sort(function (a, b) { return b.date < a.date ? -1 : b.date > a.date ? 1 : 0; });
+    var owed = 0; all.forEach(function (i) { var b = i.total - paidSum(i); if (b > 0) owed += b; });
+    var f = view.filter;
+    var shown = all.filter(function (i) {
+      var k = invStatus(i).key;
+      if (f === "unpaid") return k !== "paid";
+      if (f === "paid") return k === "paid";
+      return true;
+    });
+    var h = '<header class="top"><h1>Invoices<span class="sub">Money owed to you: <b class="num">' + money(owed) + "</b></span></h1></header>";
+    h += '<div class="chips" style="margin-bottom:12px">' + [["unpaid", "Not paid"], ["paid", "Paid"], ["all", "All"]].map(function (x) {
+      return '<button class="chip" data-action="inv-filter" data-f="' + x[0] + '" aria-pressed="' + (f === x[0]) + '">' + x[1] + "</button>";
+    }).join("") + "</div>";
+    if (!all.length) h += '<p class="muted">When you send an invoice, open the client and tap "Mark hours as invoiced". It will show up here so you can track payment.</p>';
+    else if (!shown.length) h += '<p class="muted">Nothing here.</p>';
+    else h += '<div class="list card">' + shown.map(invoiceRow).join("") + "</div>";
+    return h;
+  }
+
+  function invoiceLines(entries) {
+    var groups = {}, order = [];
+    entries.forEach(function (e) {
+      var k = e.kind === "extra" ? "x:" + e.id : "c:" + (e.label || "") + "|" + e.price + "|" + e.unit;
+      if (!groups[k]) { groups[k] = { kind: e.kind, label: e.kind === "extra" ? (e.description || "Extra") : (e.label || "Care"), unit: e.unit, price: e.price, qty: 0, total: 0, date: e.date }; order.push(k); }
+      var g = groups[k];
+      if (e.kind === "extra") g.total += entryValue(e);
+      else { g.qty += (+e.qty || 0) * carersBilled(e); g.total += entryValue(e); }
+    });
+    return order.map(function (k) { return groups[k]; }).sort(function (a, b) { return a.kind === b.kind ? 0 : a.kind === "care" ? -1 : 1; });
+  }
+
+  function breakdownText(c, entries, from, to) {
+    var es = entries.slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+    var out = ["Care for " + (c.careFor || c.name) + " (" + fmtUK(from) + " - " + fmtUK(to) + "):"];
+    var lastMonth = "";
+    var care = es.filter(function (e) { return e.kind === "care"; });
+    care.forEach(function (e) {
+      var d = parse(e.date), m = MONTH[d.getMonth()];
+      if (m !== lastMonth) { out.push(m + ":"); lastMonth = m; }
+      var q = e.unit === "hour" ? num(e.qty) + (+e.qty === 1 ? " hour" : " hours") : num(e.qty) + " " + unitWord(e.unit, +e.qty);
+      var cb = carersBilled(e);
+      out.push(ord(d.getDate()) + " - " + q + (cb > 1 ? " x " + cb + " carers" : "") + (e.label ? " (" + e.label + ")" : ""));
+    });
+    var extras = es.filter(function (e) { return e.kind === "extra"; });
+    if (extras.length) {
+      out.push("Extras:");
+      extras.forEach(function (e) { out.push(ord(parse(e.date).getDate()) + " " + MON[parse(e.date).getMonth()] + " - " + (e.description || "Extra") + " - " + money(e.amount)); });
+    }
+    var lines = invoiceLines(es), total = 0;
+    out.push("");
+    lines.forEach(function (l) {
+      total += l.total;
+      if (l.kind === "care") out.push(l.label + ": " + num(l.qty) + " " + unitWord(l.unit, l.qty) + " x " + moneyShort(l.price) + " = " + money(l.total));
+    });
+    if (extras.length) out.push("Extras: " + money(extras.reduce(function (a, e) { return a + entryValue(e); }, 0)));
+    out.push("Total: " + money(total));
+    return out.join("\n");
+  }
+
+  function renderInvoice(id) {
+    var inv = invoice(id);
+    if (!inv) return "<p>Invoice not found.</p>";
+    var c = client(inv.clientId), st = invStatus(inv), paid = paidSum(inv), bal = inv.total - paid;
+    var h = '<header class="top"><button class="iconbtn" data-action="invoice-back" aria-label="Back">&#8249;</button><h1>No. ' + esc(inv.number) + '<span class="sub">' + esc(c ? c.name : "") + " · " + fmtUK(inv.date) + "</span></h1>" +
+      '<span class="pill ' + st.key + '">' + st.text + "</span></header>";
+    h += '<div class="summary"><div><b>' + moneyShort(inv.total) + '</b><span>Invoiced</span></div><div><b>' + moneyShort(paid) + '</b><span>Paid</span></div><div><b>' + moneyShort(Math.max(bal, 0)) + '</b><span>Still owed</span></div></div>';
+    h += '<p class="muted" style="margin:0">Covers ' + (inv.from ? fmtShort(inv.from) + " to " + fmtShort(inv.to) : "this period") + ". Due " + (inv.dueDate ? fmtUK(inv.dueDate) : "on receipt") + ".</p>";
+    if (inv.outstanding && inv.note) h += '<p class="note">' + esc(inv.note) + "</p>";
+    h += '<div class="label">Lines</div><div class="card" style="padding:4px 14px"><table class="lines"><tbody>' +
+      (inv.lines || []).map(function (l) {
+        return "<tr><td>" + esc(l.label) + (l.kind === "care" ? '<br><span class="muted">' + num(l.qty) + " " + unitWord(l.unit, l.qty) + " x " + moneyShort(l.price) + "</span>" : ' <span class="tag extra">Extra</span>') + "</td><td>" + money(l.total) + "</td></tr>";
+      }).join("") + '<tr class="total"><td>Total</td><td>' + money(inv.total) + "</td></tr></tbody></table></div>";
+    var receipts = state.entries.filter(function (e) { return e.invoiceId === inv.id && e.photoId; });
+    if (receipts.length) {
+      h += '<div class="label">Receipts</div><div class="thumbs">' + receipts.map(function (e) {
+        return '<button class="thumb" data-action="photo-open" data-id="' + esc(e.photoId) + '" data-name="' + esc((e.description || "receipt") + " " + e.date + ".jpg") + '" aria-label="Receipt: ' + esc(e.description) + '"><img alt="" data-photo="' + esc(e.photoId) + '"></button>';
+      }).join("") + "</div>";
+    }
+    h += '<div class="label">Payments</div>';
+    if (!inv.payments.length) h += '<p class="muted">No payments recorded.</p>';
+    else h += '<div class="card" style="padding:4px 14px"><table class="lines"><tbody>' + inv.payments.map(function (p, i) {
+      return "<tr><td>" + fmtUK(p.date) + (p.note ? '<br><span class="muted">' + esc(p.note) + "</span>" : "") + ' <button class="linkbtn" data-action="pay-remove" data-id="' + inv.id + '" data-i="' + i + '">Remove</button></td><td>' + money(p.amount) + "</td></tr>";
+    }).join("") + "</tbody></table></div>";
+    h += '<div class="stack" style="margin-top:14px">';
+    if (bal > 0.004) h += '<div class="row"><button class="btn primary grow" data-action="pay-full" data-id="' + inv.id + '">Paid in full</button><button class="btn grow" data-action="pay-open" data-id="' + inv.id + '">Part payment</button></div>';
+    h += '<button class="btn block" data-action="inv-outstanding" data-id="' + inv.id + '">' + (inv.outstanding ? "Edit outstanding note" : "Mark as outstanding, with a note") + "</button>";
+    h += '<button class="btn block" data-action="inv-copy" data-id="' + inv.id + '">Copy hours breakdown</button>';
+    h += '<button class="btn danger block" data-action="inv-delete" data-id="' + inv.id + '">Delete this invoice record</button>';
+    h += '<p class="muted" style="font-size:.85rem;margin:0">Deleting puts its hours back into "Not invoiced yet". Nothing is sent to the client.</p></div>';
+    return h;
+  }
+
+  function renderMore() {
+    var h = '<header class="top"><h1>More</h1></header>';
+    h += '<div class="label">People you work with</div><div class="card" style="padding:14px"><div class="chips" id="carer-chips">' +
+      (state.carers.length ? state.carers.map(function (n, i) { return '<button class="chip" data-action="carer-remove" data-i="' + i + '" aria-label="Remove ' + esc(n) + '">' + esc(n) + ' &times;</button>'; }).join("") : '<span class="muted">Nobody added yet.</span>') +
+      '</div><div class="row" style="margin-top:12px"><input type="text" id="carer-new" placeholder="Their name" autocomplete="off"><button class="btn" data-action="carer-add">Add</button></div></div>';
+    h += '<div class="label">Invoices</div><div class="card" style="padding:14px"><label class="field"><span>Days until payment is due</span><input type="number" id="due-days" inputmode="numeric" min="0" value="' + esc(state.settings.dueDays) + '"></label></div>';
+    h += '<div class="label">Backup</div><div class="card stack" style="padding:14px">' +
+      '<p style="margin:0">Your hours are saved on this phone. Make a backup every week or two and send it to yourself, so nothing is lost if the phone is.</p>' +
+      '<button class="btn primary block" data-action="backup-share">Save or send a backup</button>' +
+      '<button class="btn block" data-action="restore-open">Restore from a backup</button></div>';
+    h += '<div class="label">Put it on your home screen</div><div class="card" style="padding:14px"><p style="margin:0 0 8px"><b>iPhone:</b> open this page in Safari, tap the Share button, then "Add to Home Screen".</p><p style="margin:0"><b>Android:</b> open it in Chrome, tap the three dots, then "Add to Home screen" or "Install app".</p></div>';
+    h += '<div class="label">Start again</div><div class="card" style="padding:14px"><button class="btn danger block" data-action="wipe">Erase everything on this phone</button></div>';
+    return h;
+  }
+
+  // ---------- sheets ----------
+  var sheet = null; // { type, data }
+  function openSheet(type, data) { sheet = { type: type, data: data || {} }; renderSheet(); }
+  function closeSheet() { sheet = null; document.getElementById("sheet-root").innerHTML = ""; }
+  function renderSheet() {
+    var root = document.getElementById("sheet-root");
+    if (!sheet) { root.innerHTML = ""; return; }
+    var inner = "";
+    if (sheet.type === "entry") inner = sheetEntry();
+    else if (sheet.type === "client") inner = sheetClient();
+    else if (sheet.type === "invoice") inner = sheetInvoice();
+    else if (sheet.type === "payment") inner = sheetPayment();
+    else if (sheet.type === "outstanding") inner = sheetOutstanding();
+    else if (sheet.type === "copy") inner = sheetCopy();
+    else if (sheet.type === "restore") inner = sheetRestore();
+    else if (sheet.type === "backup") inner = sheetBackup();
+    var scroll = root.querySelector(".sheet") ? root.querySelector(".sheet").scrollTop : 0;
+    root.innerHTML = '<div class="sheet-wrap" data-action="sheet-bg"><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>' + inner + "</div></div>";
+    var s = root.querySelector(".sheet"); if (s) s.scrollTop = scroll;
+    fillPhotos(root);
+  }
+
+  // Entry sheet
+  function newEntryDraft(date, clientId) {
+    var last = state.entries.slice().sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); })[0];
+    var cid = clientId || (last ? last.clientId : (state.clients.find(function (c) { return !c.archived; }) || {}).id);
+    var d = { id: null, kind: "care", clientId: cid || null, date: date || today(), rateId: null, qty: 1, workedWith: [], billOthers: false, description: "", amount: "", note: "" };
+    applyClientDefaults(d);
+    return d;
+  }
+  function applyClientDefaults(d) {
+    var c = d.clientId && client(d.clientId);
+    if (!c) { d.rateId = null; return; }
+    if (!c.rates.find(function (r) { return r.id === d.rateId; })) {
+      var prev = state.entries.filter(function (e) { return e.clientId === c.id && e.kind === "care"; }).sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); })[0];
+      d.rateId = prev && c.rates.find(function (r) { return r.id === prev.rateId; }) ? prev.rateId : (c.rates[0] ? c.rates[0].id : null);
+      if (prev && !d.id) { d.qty = prev.qty; d.workedWith = (prev.workedWith || []).slice(); d.billOthers = !!prev.billOthers; }
+    }
+  }
+  function sheetEntry() {
+    var d = sheet.data, c = d.clientId && client(d.clientId);
+    var clients = state.clients.filter(function (x) { return !x.archived || x.id === d.clientId; }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+    var h = "<h2>" + (d.id ? "Edit entry" : "Log care") + "</h2><div class=\"stack\">";
+    h += '<div class="seg" role="group" aria-label="Type"><button data-action="e-kind" data-v="care" aria-pressed="' + (d.kind === "care") + '">Care</button><button data-action="e-kind" data-v="extra" aria-pressed="' + (d.kind === "extra") + '">Extra (food, trips)</button></div>';
+    if (!clients.length) h += '<p class="note">Add a client first, on the Clients tab.</p>';
+    h += '<div class="field"><span>Client</span><div class="chips">' + clients.map(function (x) {
+      return '<button class="chip" data-action="e-client" data-id="' + x.id + '" aria-pressed="' + (x.id === d.clientId) + '">' + esc(x.name) + "</button>";
+    }).join("") + "</div></div>";
+    var yest = addDays(today(), -1);
+    h += '<div class="field"><span>Date</span><div class="row"><input type="date" id="e-date" value="' + d.date + '" class="grow">' +
+      '<button class="btn small" data-action="e-date" data-v="' + today() + '">Today</button><button class="btn small" data-action="e-date" data-v="' + yest + '">Yesterday</button></div></div>';
+    if (d.kind === "care") {
+      if (c) {
+        if (!c.rates.length) h += '<p class="note">' + esc(c.name) + ' has no rates yet. <button class="linkbtn" data-action="client-edit" data-id="' + c.id + '">Add a rate</button></p>';
+        else h += '<div class="field"><span>Type of care</span><div class="chips">' + c.rates.map(function (r) {
+          return '<button class="chip" data-action="e-rate" data-id="' + r.id + '" aria-pressed="' + (r.id === d.rateId) + '">' + esc(r.label) + "<small>" + moneyShort(r.price) + " per " + (UNIT[r.unit] || UNIT.hour)[0] + "</small></button>";
+        }).join("") + "</div></div>";
+      }
+      var rate = c && c.rates.find(function (r) { return r.id === d.rateId; });
+      var unit = rate ? rate.unit : "hour";
+      h += '<div class="field"><span>' + (unit === "hour" ? "Hours" : "How many " + unitWord(unit, 2)) + '</span><div class="stepper"><button data-action="e-step" data-v="-1" aria-label="Less">&minus;</button><input type="number" id="e-qty" inputmode="decimal" step="0.25" min="0" value="' + esc(d.qty) + '"><button data-action="e-step" data-v="1" aria-label="More">+</button></div>' +
+        (unit === "hour" ? '<div class="chips">' + [0.5, 0.75, 1, 1.5, 2, 3].map(function (q) { return '<button class="chip" data-action="e-qty" data-v="' + q + '" aria-pressed="' + (+d.qty === q) + '">' + num(q) + "</button>"; }).join("") + "</div>" : "") + "</div>";
+      h += '<div class="field"><span>Worked with <span class="hint">(optional)</span></span><div class="chips">' + state.carers.map(function (n) {
+        return '<button class="chip" data-action="e-with" data-v="' + esc(n) + '" aria-pressed="' + (d.workedWith.indexOf(n) >= 0) + '">' + esc(n) + "</button>";
+      }).join("") + '<button class="chip" data-action="e-with-add">+ Someone new</button></div>';
+      if (d.addingCarer) h += '<div class="row"><input type="text" id="e-carer-new" placeholder="Their name" autocomplete="off"><button class="btn" data-action="e-with-save">Add</button></div>';
+      if (d.workedWith.length) h += '<label class="check"><input type="checkbox" id="e-billothers"' + (d.billOthers ? " checked" : "") + '> Charge for ' + (d.workedWith.length === 1 ? "both carers" : "all " + (d.workedWith.length + 1) + " carers") + " (double-up call)</label>";
+      h += "</div>";
+      if (rate) {
+        var tmp = { kind: "care", qty: d.qty, price: rate.price, unit: rate.unit, workedWith: d.workedWith, billOthers: d.billOthers };
+        h += '<p class="muted" style="margin:0">Comes to <b class="num">' + money(entryValue(tmp)) + "</b></p>";
+      }
+    } else {
+      h += '<div class="field"><span>What was it?</span><input type="text" id="e-desc" value="' + esc(d.description) + '" placeholder="e.g. Food shopping" autocomplete="off"><div class="chips">' +
+        ["Food shopping", "Hospital visit", "Prescription", "Taxi or fuel"].map(function (s) { return '<button class="chip" data-action="e-desc" data-v="' + s + '">' + s + "</button>"; }).join("") + "</div></div>";
+      h += '<div class="field"><span>Amount (£)</span><input type="number" id="e-amount" inputmode="decimal" step="0.01" min="0" value="' + esc(d.amount) + '" placeholder="0.00"></div>';
+      h += '<div class="field"><span>Receipt photo <span class="hint">(optional)</span></span>';
+      if (d.photoData || d.photoId) {
+        h += '<div class="receipt"><button class="thumb" data-action="e-photo-view" aria-label="View receipt"><img alt="Receipt" ' + (d.photoData ? 'src="' + d.photoData + '"' : 'data-photo="' + esc(d.photoId) + '"') + '></button>' +
+          '<div class="stack grow"><label class="btn small" for="e-photo">Replace photo</label><button class="btn small" data-action="e-photo-remove">Remove photo</button></div></div>';
+      } else h += '<label class="btn block" for="e-photo">' + (d.photoBusy ? "Adding photo..." : "Take or choose a photo") + "</label>";
+      h += '<input type="file" id="e-photo" accept="image/*" hidden></div>';
+    }
+    h += '<label class="field"><span>Note <span class="hint">(optional, only you see this)</span></span><textarea id="e-note">' + esc(d.note) + "</textarea></label>";
+    if (d.invoiceId) { var inv = invoice(d.invoiceId); if (inv) h += '<p class="note">This is already on invoice No. ' + esc(inv.number) + ". Changes here also change that invoice record's total.</p>"; }
+    if (d.error) h += '<p class="note">' + esc(d.error) + "</p>";
+    h += '<div class="actions">' + (d.id ? '<button class="btn danger' + (d.armDelete ? " armed" : "") + '" data-action="e-delete">' + (d.armDelete ? "Tap again to delete" : "Delete") + "</button>" : '<button class="btn" data-action="sheet-close">Cancel</button>') +
+      '<button class="btn primary" data-action="e-save">Save</button></div></div>';
+    return h;
+  }
+  function readEntryInputs() {
+    var d = sheet.data, g = function (id) { var el = document.getElementById(id); return el ? el.value : null; };
+    if (g("e-date")) d.date = g("e-date");
+    if (g("e-qty") != null) d.qty = g("e-qty");
+    if (g("e-desc") != null) d.description = g("e-desc");
+    if (g("e-amount") != null) d.amount = g("e-amount");
+    if (g("e-note") != null) d.note = g("e-note");
+    var bo = document.getElementById("e-billothers"); if (bo) d.billOthers = bo.checked;
+  }
+  function saveEntry() {
+    readEntryInputs();
+    var d = sheet.data, c = client(d.clientId);
+    if (!c) { d.error = "Pick a client."; renderSheet(); return; }
+    if (!d.date) { d.error = "Pick a date."; renderSheet(); return; }
+    var e = d.id ? state.entries.find(function (x) { return x.id === d.id; }) : { id: uid(), createdAt: Date.now() };
+    e.clientId = c.id; e.date = d.date; e.kind = d.kind; e.note = d.note || "";
+    if (d.kind === "care") {
+      var r = c.rates.find(function (x) { return x.id === d.rateId; });
+      if (!r) { d.error = "Pick the type of care. If there are none, add a rate to this client first."; renderSheet(); return; }
+      var q = parseFloat(d.qty);
+      if (!(q > 0)) { d.error = "Enter how long, more than 0."; renderSheet(); return; }
+      var keepPrice = d.id && e.rateId === r.id && e.price != null;
+      e.rateId = r.id; e.label = r.label; e.unit = r.unit; if (!keepPrice) e.price = r.price;
+      e.qty = q; e.workedWith = d.workedWith.slice(); e.billOthers = !!(d.billOthers && d.workedWith.length);
+      delete e.amount; delete e.description;
+      if (e.photoId) { delPhoto(e.photoId); delete e.photoId; }
+    } else {
+      var a = parseFloat(d.amount);
+      if (!(a > 0)) { d.error = "Enter the amount in pounds."; renderSheet(); return; }
+      if (!String(d.description || "").trim()) { d.error = "Say what the extra was, e.g. Food shopping."; renderSheet(); return; }
+      e.amount = Math.round(a * 100) / 100; e.description = d.description.trim();
+      delete e.rateId; delete e.label; delete e.unit; delete e.price; delete e.qty; e.workedWith = []; e.billOthers = false;
+      if (d.photoData) {
+        if (e.photoId) delPhoto(e.photoId);
+        e.photoId = uid();
+        putPhoto(e.photoId, d.photoData).catch(function () { toast("Couldn't save the photo on this phone."); });
+      } else if (!d.photoId && e.photoId) { delPhoto(e.photoId); delete e.photoId; }
+    }
+    if (!d.id) state.entries.push(e);
+    if (e.invoiceId) recalcInvoice(e.invoiceId);
+    save(); closeSheet();
+    if (view.name === "week") view.week = weekStart(e.date);
+    render(); toast(d.id ? "Saved" : "Logged " + (e.kind === "care" ? qtyText(e) : money(e.amount)) + " for " + c.name);
+  }
+  function recalcInvoice(invId) {
+    var inv = invoice(invId); if (!inv) return;
+    var es = state.entries.filter(function (e) { return e.invoiceId === invId; });
+    inv.lines = invoiceLines(es);
+    inv.total = Math.round(inv.lines.reduce(function (a, l) { return a + l.total; }, 0) * 100) / 100;
+  }
+
+  // Client sheet
+  function sheetClient() {
+    var d = sheet.data;
+    var h = "<h2>" + (d.id ? "Edit client" : "New client") + '</h2><div class="stack">';
+    h += '<label class="field"><span>Name on the invoice</span><input type="text" id="c-name" value="' + esc(d.name) + '" placeholder="e.g. Mrs Jones" autocomplete="off"></label>';
+    h += '<label class="field"><span>Care for <span class="hint">(only if different, e.g. a son paying for his dad\'s care)</span></span><input type="text" id="c-carefor" value="' + esc(d.careFor) + '" autocomplete="off"></label>';
+    h += '<div class="field"><span>Rates</span>';
+    d.rates.forEach(function (r, i) {
+      h += '<div class="card" style="padding:10px;display:grid;grid-template-columns:1fr 92px;gap:8px">' +
+        '<input type="text" data-r="label" data-i="' + i + '" value="' + esc(r.label) + '" placeholder="e.g. Care call" aria-label="Rate name">' +
+        '<input type="number" data-r="price" data-i="' + i + '" value="' + esc(r.price) + '" inputmode="decimal" step="0.01" placeholder="£" aria-label="Price in pounds">' +
+        '<select data-r="unit" data-i="' + i + '" aria-label="Charged per">' + ["hour", "session", "visit"].map(function (u) { return '<option value="' + u + '"' + (r.unit === u ? " selected" : "") + ">per " + u + "</option>"; }).join("") + "</select>" +
+        '<button class="btn small" data-action="c-rate-remove" data-i="' + i + '">Remove</button></div>';
+    });
+    h += '<button class="btn small" data-action="c-rate-add">+ Add a rate</button><span class="hint">Most clients need one rate, e.g. "Care" at £20 per hour. Some need two, e.g. weekday and weekend sessions.</span></div>';
+    h += '<label class="field"><span>Next invoice number</span><input type="number" id="c-next" inputmode="numeric" min="1" value="' + esc(d.nextInvoiceNo) + '"><span class="hint">If the last invoice you sent was 007, put 8.</span></label>';
+    if (d.id) h += '<label class="check"><input type="checkbox" id="c-archived"' + (d.archived ? " checked" : "") + "> No longer a client (hide from lists)</label>";
+    if (d.error) h += '<p class="note">' + esc(d.error) + "</p>";
+    h += '<div class="actions"><button class="btn" data-action="sheet-close">Cancel</button><button class="btn primary" data-action="c-save">Save</button></div>';
+    if (d.id) {
+      var n = state.entries.filter(function (e) { return e.clientId === d.id; }).length;
+      h += n ? '<p class="muted" style="font-size:.85rem">To remove ' + esc(d.name) + ' from your lists, tick "No longer a client". Their ' + n + " logged entries are kept.</p>"
+        : '<button class="btn danger block" style="margin-top:10px" data-action="c-delete">' + (d.armDelete ? "Tap again to delete" : "Delete client") + "</button>";
+    }
+    return h + "</div>";
+  }
+  function readClientInputs() {
+    var d = sheet.data, g = function (id) { var el = document.getElementById(id); return el ? el.value : null; };
+    if (g("c-name") != null) d.name = g("c-name");
+    if (g("c-carefor") != null) d.careFor = g("c-carefor");
+    if (g("c-next") != null) d.nextInvoiceNo = g("c-next");
+    var a = document.getElementById("c-archived"); if (a) d.archived = a.checked;
+    document.querySelectorAll("[data-r]").forEach(function (el) { var r = d.rates[+el.dataset.i]; if (r) r[el.dataset.r] = el.value; });
+  }
+  function saveClient() {
+    readClientInputs();
+    var d = sheet.data;
+    if (!String(d.name || "").trim()) { d.error = "Enter the client's name."; renderSheet(); return; }
+    var rates = d.rates.filter(function (r) { return String(r.label || "").trim() || r.price !== ""; });
+    for (var i = 0; i < rates.length; i++) {
+      if (!String(rates[i].label || "").trim()) rates[i].label = "Care";
+      if (!(parseFloat(rates[i].price) >= 0)) { d.error = "Each rate needs a price in pounds."; renderSheet(); return; }
+      rates[i].price = parseFloat(rates[i].price);
+    }
+    var c = d.id ? client(d.id) : { id: uid() };
+    c.name = d.name.trim(); c.careFor = String(d.careFor || "").trim(); c.rates = rates; c.nextInvoiceNo = Math.max(1, parseInt(d.nextInvoiceNo, 10) || 1); c.archived = !!d.archived;
+    if (!d.id) state.clients.push(c);
+    save(); closeSheet();
+    if (!d.id) { view.name = "client"; view.id = c.id; }
+    render(); toast("Saved " + c.name);
+  }
+
+  // Mark-invoiced sheet
+  function sheetInvoice() {
+    var d = sheet.data, c = client(d.clientId);
+    var all = unbilled(c.id).sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    var inRange = all.filter(function (e) { return e.date >= d.from && e.date <= d.to; });
+    var picked = inRange.filter(function (e) { return d.skip.indexOf(e.id) < 0; });
+    var lines = invoiceLines(picked), total = lines.reduce(function (a, l) { return a + l.total; }, 0);
+    var h = "<h2>Mark as invoiced: " + esc(c.name) + '</h2><div class="stack">';
+    h += '<p class="muted" style="margin:0">Use this after you\'ve made and sent the invoice your usual way. These hours then move off the "not invoiced" list.</p>';
+    h += '<div class="row"><label class="field grow"><span>Invoice No.</span><input type="text" id="i-no" value="' + esc(d.number) + '" inputmode="numeric"></label><label class="field grow"><span>Invoice date</span><input type="date" id="i-date" value="' + d.date + '"></label></div>';
+    h += '<div class="row"><label class="field grow"><span>Hours from</span><input type="date" id="i-from" value="' + d.from + '"></label><label class="field grow"><span>to</span><input type="date" id="i-to" value="' + d.to + '"></label></div>';
+    h += '<div class="field"><span>Entries (' + picked.length + " of " + inRange.length + ")</span>";
+    if (!inRange.length) h += '<p class="muted" style="margin:0">Nothing un-invoiced in those dates.</p>';
+    inRange.forEach(function (e) {
+      h += '<label class="check" style="border-bottom:1px solid var(--line)"><input type="checkbox" data-skip="' + e.id + '"' + (d.skip.indexOf(e.id) < 0 ? " checked" : "") + '><span class="grow">' + fmtShort(e.date) + " · " +
+        (e.kind === "extra" ? esc(e.description) : esc(e.label) + " · " + qtyText(e) + (carersBilled(e) > 1 ? " x " + carersBilled(e) + " carers" : "")) + '</span><span class="num">' + money(entryValue(e)) + "</span></label>";
+    });
+    h += "</div>";
+    if (picked.length) {
+      h += '<div class="card" style="padding:4px 14px"><table class="lines"><tbody>' + lines.map(function (l) {
+        return "<tr><td>" + esc(l.label) + (l.kind === "care" ? '<br><span class="muted">' + num(l.qty) + " " + unitWord(l.unit, l.qty) + " x " + moneyShort(l.price) + "</span>" : "") + "</td><td>" + money(l.total) + "</td></tr>";
+      }).join("") + '<tr class="total"><td>Total</td><td>' + money(total) + "</td></tr></tbody></table></div>";
+      h += '<button class="btn block" data-action="i-copy">Copy hours breakdown for the invoice</button>';
+    }
+    if (d.error) h += '<p class="note">' + esc(d.error) + "</p>";
+    h += '<div class="actions"><button class="btn" data-action="sheet-close">Cancel</button><button class="btn primary" data-action="i-save"' + (picked.length ? "" : " disabled") + ">Save invoice " + esc(d.number) + "</button></div></div>";
+    return h;
+  }
+  function readInvoiceInputs() {
+    var d = sheet.data, g = function (id) { var el = document.getElementById(id); return el ? el.value : null; };
+    if (g("i-no") != null) d.number = g("i-no");
+    if (g("i-date")) d.date = g("i-date");
+    if (g("i-from")) d.from = g("i-from");
+    if (g("i-to")) d.to = g("i-to");
+    document.querySelectorAll("[data-skip]").forEach(function (el) {
+      var id = el.dataset.skip, i = d.skip.indexOf(id);
+      if (el.checked && i >= 0) d.skip.splice(i, 1);
+      if (!el.checked && i < 0) d.skip.push(id);
+    });
+  }
+  function pickedForInvoice() {
+    var d = sheet.data;
+    return unbilled(d.clientId).filter(function (e) { return e.date >= d.from && e.date <= d.to && d.skip.indexOf(e.id) < 0; });
+  }
+  function saveInvoice() {
+    readInvoiceInputs();
+    var d = sheet.data, c = client(d.clientId), es = pickedForInvoice();
+    if (!String(d.number).trim()) { d.error = "Enter the invoice number."; renderSheet(); return; }
+    if (state.invoices.some(function (i) { return i.clientId === c.id && String(i.number) === String(d.number).trim(); })) { d.error = c.name + " already has an invoice No. " + d.number + "."; renderSheet(); return; }
+    if (!es.length) { d.error = "Tick at least one entry."; renderSheet(); return; }
+    var dates = es.map(function (e) { return e.date; }).sort();
+    var inv = { id: uid(), clientId: c.id, number: String(d.number).trim(), date: d.date, dueDate: addDays(d.date, +state.settings.dueDays || 0), from: dates[0], to: dates[dates.length - 1], payments: [], outstanding: false, note: "", createdAt: Date.now() };
+    es.forEach(function (e) { e.invoiceId = inv.id; });
+    state.invoices.push(inv);
+    recalcInvoice(inv.id);
+    var n = parseInt(inv.number, 10);
+    if (n >= c.nextInvoiceNo) c.nextInvoiceNo = n + 1;
+    save(); closeSheet(); render(); toast("Invoice " + inv.number + " saved: " + money(inv.total));
+  }
+
+  function sheetCopy() {
+    var d = sheet.data;
+    return "<h2>Hours breakdown</h2><div class=\"stack\"><p class=\"muted\" style=\"margin:0\">Copy this into the description on your invoice.</p><pre class=\"copytext\">" + esc(d.text) + '</pre><div class="actions"><button class="btn" data-action="' + (d.back ? "copy-back" : "sheet-close") + '">' + (d.back ? "Back" : "Close") + '</button><button class="btn primary" data-action="copy-do">Copy</button></div></div>';
+  }
+
+  function sheetPayment() {
+    var d = sheet.data, inv = invoice(d.id), bal = inv.total - paidSum(inv);
+    return "<h2>Record a payment</h2><div class=\"stack\">" +
+      '<label class="field"><span>Amount (£)</span><input type="number" id="p-amount" inputmode="decimal" step="0.01" value="' + esc(d.amount != null ? d.amount : (Math.round(bal * 100) / 100)) + '"></label>' +
+      '<label class="field"><span>Date paid</span><input type="date" id="p-date" value="' + (d.date || today()) + '"></label>' +
+      '<label class="field"><span>Note <span class="hint">(optional)</span></span><input type="text" id="p-note" value="' + esc(d.note || "") + '" placeholder="e.g. Bank transfer"></label>' +
+      (d.error ? '<p class="note">' + esc(d.error) + "</p>" : "") +
+      '<div class="actions"><button class="btn" data-action="sheet-close">Cancel</button><button class="btn primary" data-action="p-save">Save payment</button></div></div>';
+  }
+  function sheetOutstanding() {
+    var d = sheet.data, inv = invoice(d.id);
+    return "<h2>Outstanding</h2><div class=\"stack\"><p class=\"muted\" style=\"margin:0\">For invoices held up by someone else, like social services.</p>" +
+      '<label class="field"><span>Note</span><textarea id="o-note" placeholder="e.g. To be paid when social services correct payment mistakes">' + esc(inv.note || "") + "</textarea></label>" +
+      '<div class="actions">' + (inv.outstanding ? '<button class="btn" data-action="o-clear">No longer outstanding</button>' : '<button class="btn" data-action="sheet-close">Cancel</button>') + '<button class="btn primary" data-action="o-save">Save</button></div></div>';
+  }
+
+  function buildBackup() {
+    return allPhotos().catch(function () { return {}; }).then(function (all) {
+      var photos = {};
+      state.entries.forEach(function (e) { if (e.photoId && all[e.photoId]) photos[e.photoId] = all[e.photoId]; });
+      return JSON.stringify(Object.assign({ exportedAt: new Date().toISOString(), app: "kas-care-hours" }, state, { photos: photos }));
+    });
+  }
+  function sheetBackup() {
+    var d = sheet.data, ready = !!d.text;
+    return "<h2>Backup</h2><div class=\"stack\"><p style=\"margin:0\">Send the backup file to yourself on WhatsApp or email. It includes receipt photos. To restore, open More, then Restore, and pick that file.</p>" +
+      '<button class="btn primary block" data-action="backup-file"' + (ready ? "" : " disabled") + ">" + (ready ? "Share backup file" : "Preparing backup...") + "</button>" +
+      '<button class="btn block" data-action="backup-copy"' + (ready ? "" : " disabled") + ">Copy backup as text</button>" +
+      '<pre class="copytext" hidden>' + esc(d.text || "") + "</pre>" +
+      '<div class="actions"><button class="btn" data-action="sheet-close">Done</button></div></div>';
+  }
+  function sheetRestore() {
+    var d = sheet.data;
+    return "<h2>Restore</h2><div class=\"stack\"><p style=\"margin:0\">Pick a backup or setup file, or paste its text. This replaces what's on this phone now.</p>" +
+      '<label class="btn block" for="r-file">Choose file</label><input type="file" id="r-file" accept=".json,application/json,text/plain" hidden>' +
+      '<label class="field"><span>Or paste it here</span><textarea id="r-text" placeholder="{ ... }"></textarea></label>' +
+      (d.error ? '<p class="note">' + esc(d.error) + "</p>" : "") +
+      '<div class="actions"><button class="btn" data-action="sheet-close">Cancel</button><button class="btn primary" data-action="r-paste">Restore pasted text</button></div></div>';
+  }
+  function doRestore(text) {
+    try {
+      var obj = JSON.parse(text);
+      if (!obj || !Array.isArray(obj.clients)) throw new Error("no clients");
+      state = normalise(obj); save(); closeSheet(); view.name = "week"; view.week = weekStart(today()); render();
+      var photos = obj.photos || {};
+      clearPhotos().then(function () { return Promise.all(Object.keys(photos).map(function (k) { return putPhoto(k, photos[k]); })); }).then(function () { render(); }).catch(function () {});
+      toast("Loaded " + state.clients.length + " clients and " + state.entries.length + " entries");
+    } catch (e) {
+      if (!sheet || sheet.type !== "restore") openSheet("restore");
+      sheet.data.error = "That doesn't look like a backup from this app. Check you picked the right file.";
+      renderSheet();
+    }
+  }
+
+  // ---------- example data ----------
+  function exampleReceipt() {
+    var c = document.createElement("canvas"); c.width = 420; c.height = 620;
+    var g = c.getContext("2d");
+    g.fillStyle = "#fbfaf6"; g.fillRect(0, 0, 420, 620);
+    g.fillStyle = "#222"; g.textAlign = "center"; g.font = "bold 26px monospace"; g.fillText("EXAMPLE STORE", 210, 60);
+    g.font = "16px monospace"; g.fillText("Example receipt", 210, 88);
+    g.textAlign = "left";
+    [["Milk 2L", "1.65"], ["Bread", "1.40"], ["Soup x4", "4.80"], ["Bananas", "1.15"], ["Ready meals x3", "7.50"], ["Teabags", "2.10"]].forEach(function (r, i) {
+      g.fillText(r[0], 40, 150 + i * 34); g.textAlign = "right"; g.fillText(r[1], 380, 150 + i * 34); g.textAlign = "left";
+    });
+    g.fillRect(40, 370, 340, 2);
+    g.font = "bold 20px monospace"; g.fillText("TOTAL", 40, 410); g.textAlign = "right"; g.fillText("18.60", 380, 410);
+    return c.toDataURL("image/jpeg", 0.8);
+  }
+  function exampleState() {
+    var s = blankState();
+    var mk = function (name, careFor, rates, next) { var c = { id: uid(), name: name, careFor: careFor || "", rates: rates.map(function (r) { return { id: uid(), label: r[0], price: r[1], unit: r[2] || "hour" }; }), nextInvoiceNo: next, archived: false }; s.clients.push(c); return c; };
+    var a = mk("Example: Dorothy", "", [["Care call", 20]], 4);
+    var b = mk("Example: Frank", "Example: Ivy", [["Care call", 20], ["Hospital trip", 25]], 2);
+    var p = mk("Example: Walter", "", [["Weekday session", 25, "session"], ["Weekend session", 30, "session"]], 3);
+    s.carers = ["Example: Sam"];
+    var t = today(), ws = addDays(t, -6);
+    var add = function (c, off, rateIdx, qty, extra) {
+      var d = addDays(ws, off); if (d > t) return;
+      var e = { id: uid(), createdAt: Date.now() + off, clientId: c.id, date: d, note: "" };
+      if (extra) { e.kind = "extra"; e.description = extra[0]; e.amount = extra[1]; e.workedWith = []; }
+      else { var r = c.rates[rateIdx]; e.kind = "care"; e.rateId = r.id; e.label = r.label; e.unit = r.unit; e.price = r.price; e.qty = qty; e.workedWith = []; }
+      s.entries.push(e); return e;
+    };
+    [-7, -6, -5, -4, -3, 0, 1, 2, 3, 4, 6].forEach(function (o) { add(a, o, 0, o % 2 ? 1 : 1.5); });
+    [-6, -4, -2, 1, 3].forEach(function (o) { var e = add(b, o, 0, 2); if (e && o === 3) { e.workedWith = ["Example: Sam"]; e.billOthers = true; } });
+    add(b, -1, 1, 3);
+    var food = add(b, 2, 0, 0, ["Food shopping", 18.6]);
+    if (food) { food.photoId = uid(); putPhoto(food.photoId, exampleReceipt()).catch(function () {}); }
+    [-7, -5, -3, -2, 0, 2, 5, 6].forEach(function (o) { add(p, o, o === -2 || o === 5 ? 1 : 0, 1); });
+    // an older invoice for Dorothy, paid
+    var old = { id: uid(), clientId: a.id, number: "003", date: addDays(ws, -10), dueDate: addDays(ws, -3), from: addDays(ws, -35), to: addDays(ws, -11), payments: [{ date: addDays(ws, -5), amount: 360, note: "Bank transfer" }], outstanding: false, note: "", lines: [{ kind: "care", label: "Care call", unit: "hour", price: 20, qty: 18, total: 360 }], total: 360 };
+    s.invoices.push(old);
+    return s;
+  }
+
+  // ---------- events ----------
+  document.addEventListener("click", function (ev) {
+    var navBtn = ev.target.closest("[data-nav]");
+    if (navBtn && !navBtn.closest(".sheet")) { go(navBtn.dataset.nav); return; }
+    var el = ev.target.closest("[data-action]");
+    if (!el) return;
+    var a = el.dataset.action, id = el.dataset.id;
+    if (a === "sheet-bg") { if (ev.target === el) closeSheet(); return; }
+    if (sheet && sheet.type === "entry" && a.indexOf("e-") === 0) readEntryInputs();
+    if (sheet && sheet.type === "client" && a.indexOf("c-") === 0) readClientInputs();
+    if (sheet && sheet.type === "invoice" && a.indexOf("i-") === 0) readInvoiceInputs();
+    switch (a) {
+      case "start-fresh": state = blankState(); save(); view.name = "clients"; render(); openSheet("client", { id: null, name: "", careFor: "", rates: [{ id: uid(), label: "Care", price: 20, unit: "hour" }], nextInvoiceNo: 1 }); break;
+      case "start-example": state = exampleState(); save(); view.name = "week"; render(); toast("Example clients loaded"); break;
+      case "restore-open": openSheet("restore"); break;
+      case "week-prev": view.week = addDays(view.week, -7); render(); break;
+      case "week-next": view.week = addDays(view.week, 7); render(); break;
+      case "week-today": view.week = weekStart(today()); render(); break;
+      case "open-client": go("client", id); break;
+      case "open-invoice": view.from = view.name === "client" ? view.id : null; go("invoice", id); break;
+      case "invoice-back": if (view.from && client(view.from)) go("client", view.from); else go("invoices"); break;
+      case "inv-filter": view.filter = el.dataset.f; render(); break;
+      case "log-new": openSheet("entry", newEntryDraft(el.dataset.date, view.name === "client" ? view.id : null)); break;
+      case "edit-entry": {
+        var e = state.entries.find(function (x) { return x.id === id; }); if (!e) break;
+        openSheet("entry", { id: e.id, kind: e.kind, clientId: e.clientId, date: e.date, rateId: e.rateId || null, qty: e.qty || 1, workedWith: (e.workedWith || []).slice(), billOthers: !!e.billOthers, description: e.description || "", amount: e.amount != null ? e.amount : "", note: e.note || "", invoiceId: e.invoiceId || null, photoId: e.photoId || null });
+        break;
+      }
+      case "e-kind": sheet.data.kind = el.dataset.v; sheet.data.error = ""; renderSheet(); break;
+      case "e-client": sheet.data.clientId = id; applyClientDefaults(sheet.data); sheet.data.error = ""; renderSheet(); break;
+      case "e-date": sheet.data.date = el.dataset.v; renderSheet(); break;
+      case "e-rate": sheet.data.rateId = id; renderSheet(); break;
+      case "e-qty": sheet.data.qty = +el.dataset.v; renderSheet(); break;
+      case "e-step": { var q = Math.max(0, (parseFloat(sheet.data.qty) || 0) + (+el.dataset.v) * (sheet.data.kind === "care" && isHourly() ? 0.25 : 1)); sheet.data.qty = q; renderSheet(); break; }
+      case "e-with": { var w = sheet.data.workedWith, n = el.dataset.v, i = w.indexOf(n); if (i >= 0) w.splice(i, 1); else w.push(n); renderSheet(); break; }
+      case "e-with-add": sheet.data.addingCarer = true; renderSheet(); var inp = document.getElementById("e-carer-new"); if (inp) inp.focus(); break;
+      case "e-with-save": {
+        var nm = (document.getElementById("e-carer-new").value || "").trim();
+        if (nm) { if (state.carers.indexOf(nm) < 0) { state.carers.push(nm); save(); } if (sheet.data.workedWith.indexOf(nm) < 0) sheet.data.workedWith.push(nm); }
+        sheet.data.addingCarer = false; renderSheet(); break;
+      }
+      case "e-desc": sheet.data.description = el.dataset.v; renderSheet(); break;
+      case "e-photo-remove": sheet.data.photoData = null; sheet.data.photoId = null; renderSheet(); break;
+      case "e-photo-view":
+        if (sheet.data.photoData) openViewer(sheet.data.photoData);
+        else if (sheet.data.photoId) getPhoto(sheet.data.photoId).then(function (v) { if (v) openViewer(v); });
+        break;
+      case "photo-open": getPhoto(id).then(function (v) { if (v) openViewer(v, el.dataset.name); else toast("That photo isn't on this phone."); }); break;
+      case "photo-close": if (ev.target === el || el.tagName === "BUTTON") closeViewer(); break;
+      case "photo-share": sharePhoto(); break;
+      case "e-save": saveEntry(); break;
+      case "e-delete":
+        if (!sheet.data.armDelete) { sheet.data.armDelete = true; renderSheet(); break; }
+        var gone = state.entries.find(function (x) { return x.id === sheet.data.id; });
+        state.entries = state.entries.filter(function (x) { return x.id !== sheet.data.id; });
+        if (gone && gone.invoiceId) recalcInvoice(gone.invoiceId);
+        if (gone && gone.photoId) delPhoto(gone.photoId);
+        save(); closeSheet(); render(); toast("Deleted"); break;
+      case "sheet-close": closeSheet(); break;
+      case "client-new": openSheet("client", { id: null, name: "", careFor: "", rates: [{ id: uid(), label: "Care", price: 20, unit: "hour" }], nextInvoiceNo: 1 }); break;
+      case "client-edit": { var c = client(id); openSheet("client", { id: c.id, name: c.name, careFor: c.careFor || "", rates: c.rates.map(function (r) { return Object.assign({}, r); }), nextInvoiceNo: c.nextInvoiceNo, archived: !!c.archived }); break; }
+      case "c-rate-add": sheet.data.rates.push({ id: uid(), label: "", price: "", unit: "hour" }); renderSheet(); break;
+      case "c-rate-remove": sheet.data.rates.splice(+el.dataset.i, 1); renderSheet(); break;
+      case "c-save": saveClient(); break;
+      case "c-delete":
+        if (!sheet.data.armDelete) { sheet.data.armDelete = true; renderSheet(); break; }
+        state.clients = state.clients.filter(function (x) { return x.id !== sheet.data.id; }); save(); closeSheet(); go("clients"); break;
+      case "mark-invoiced": {
+        var u = unbilled(id).map(function (e) { return e.date; }).sort();
+        var cc = client(id);
+        openSheet("invoice", { clientId: id, number: pad3(cc.nextInvoiceNo), date: today(), from: u[0] || today(), to: u[u.length - 1] || today(), skip: [] });
+        break;
+      }
+      case "i-copy": {
+        var dd = sheet.data, keep = JSON.parse(JSON.stringify(dd)), es = pickedForInvoice(), ds = es.map(function (e) { return e.date; }).sort();
+        openSheet("copy", { text: breakdownText(client(dd.clientId), es, ds[0], ds[ds.length - 1]), back: keep });
+        break;
+      }
+      case "copy-back": openSheet("invoice", sheet.data.back); break;
+      case "copy-do": copyText(sheet.data.text); break;
+      case "i-save": saveInvoice(); break;
+      case "inv-copy": {
+        var iv = invoice(id), ies = state.entries.filter(function (e) { return e.invoiceId === id; });
+        openSheet("copy", { text: ies.length ? breakdownText(client(iv.clientId), ies, iv.from, iv.to) : "No logged entries are linked to this invoice." });
+        break;
+      }
+      case "pay-full": { var pv = invoice(id), bal = Math.round((pv.total - paidSum(pv)) * 100) / 100; pv.payments.push({ date: today(), amount: bal, note: "" }); save(); render(); toast("Marked as paid"); break; }
+      case "pay-open": openSheet("payment", { id: id }); break;
+      case "p-save": {
+        var amt = parseFloat(document.getElementById("p-amount").value), dt = document.getElementById("p-date").value, nt = document.getElementById("p-note").value;
+        if (!(amt > 0)) { sheet.data.amount = document.getElementById("p-amount").value; sheet.data.error = "Enter the amount paid."; renderSheet(); break; }
+        invoice(sheet.data.id).payments.push({ date: dt || today(), amount: Math.round(amt * 100) / 100, note: nt.trim() }); save(); closeSheet(); render(); toast("Payment saved"); break;
+      }
+      case "pay-remove": { invoice(id).payments.splice(+el.dataset.i, 1); save(); render(); break; }
+      case "inv-outstanding": openSheet("outstanding", { id: id }); break;
+      case "o-save": { var ov = invoice(sheet.data.id); ov.outstanding = true; ov.note = document.getElementById("o-note").value.trim(); save(); closeSheet(); render(); break; }
+      case "o-clear": { var ov2 = invoice(sheet.data.id); ov2.outstanding = false; save(); closeSheet(); render(); break; }
+      case "inv-delete":
+        if (!el.classList.contains("armed")) { el.classList.add("armed"); el.textContent = "Tap again to delete"; break; }
+        state.entries.forEach(function (e) { if (e.invoiceId === id) delete e.invoiceId; });
+        state.invoices = state.invoices.filter(function (i) { return i.id !== id; });
+        save(); go("invoices"); toast("Invoice record deleted"); break;
+      case "carer-add": {
+        var cn = (document.getElementById("carer-new").value || "").trim();
+        if (cn && state.carers.indexOf(cn) < 0) { state.carers.push(cn); save(); }
+        render(); break;
+      }
+      case "carer-remove": state.carers.splice(+el.dataset.i, 1); save(); render(); break;
+      case "backup-share": {
+        openSheet("backup", { text: null });
+        var bd = sheet.data;
+        buildBackup().then(function (t) { bd.text = t; if (sheet && sheet.data === bd) renderSheet(); });
+        break;
+      }
+      case "backup-file": shareBackup(); break;
+      case "backup-copy": { var pre = document.querySelector(".sheet pre.copytext"); pre.hidden = false; copyText(sheet.data.text); break; }
+      case "r-paste": doRestore(document.getElementById("r-text").value); break;
+      case "wipe":
+        if (!el.classList.contains("armed")) { el.classList.add("armed"); el.textContent = "Tap again to erase everything"; break; }
+        try { localStorage.removeItem(KEY); } catch (e2) {}
+        clearPhotos();
+        state = null; view.name = "week"; render(); break;
+    }
+  });
+  function isHourly() {
+    var d = sheet.data, c = client(d.clientId), r = c && c.rates.find(function (x) { return x.id === d.rateId; });
+    return !r || r.unit === "hour";
+  }
+  document.addEventListener("change", function (ev) {
+    var t = ev.target;
+    if (t.id === "r-file" && t.files && t.files[0]) {
+      var fr = new FileReader(); fr.onload = function () { doRestore(String(fr.result)); }; fr.readAsText(t.files[0]); return;
+    }
+    if (t.id === "due-days") { state.settings.dueDays = Math.max(0, parseInt(t.value, 10) || 0); save(); toast("Saved"); return; }
+    if (sheet && sheet.type === "entry" && (t.id === "e-billothers" || t.id === "e-qty")) { readEntryInputs(); renderSheet(); return; }
+    if (t.id === "e-photo" && t.files && t.files[0] && sheet && sheet.type === "entry") {
+      readEntryInputs(); sheet.data.photoBusy = true; renderSheet();
+      var d = sheet.data;
+      shrinkImage(t.files[0]).then(function (data) { d.photoData = data; d.photoBusy = false; if (sheet && sheet.data === d) renderSheet(); })
+        .catch(function () { d.photoBusy = false; if (sheet && sheet.data === d) renderSheet(); toast("That file isn't a photo the app can read."); });
+      return;
+    }
+    if (sheet && sheet.type === "invoice" && (t.dataset.skip || t.id === "i-from" || t.id === "i-to")) { readInvoiceInputs(); renderSheet(); return; }
+  });
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" && document.getElementById("photo-root").innerHTML) { closeViewer(); return; }
+    if (ev.key === "Escape" && sheet) closeSheet();
+    if (ev.key === "Enter" && ev.target.id === "carer-new") { ev.preventDefault(); document.querySelector('[data-action="carer-add"]').click(); }
+    if (ev.key === "Enter" && ev.target.id === "e-carer-new") { ev.preventDefault(); document.querySelector('[data-action="e-with-save"]').click(); }
+  });
+  function shareBackup() {
+    var text = sheet.data.text, name = "kas-care-hours-backup-" + today() + ".json";
+    try {
+      var file = new File([text], name, { type: "application/json" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], title: "Care hours backup" }).catch(function () {});
+        return;
+      }
+    } catch (e) {}
+    try {
+      var url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+      var a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      toast("Backup saved to your downloads");
+    } catch (e) { toast("Couldn't share a file here. Use Copy backup as text."); }
+  }
+
+  load();
+  render();
+})();
+</script>
