@@ -653,6 +653,7 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
       '<button class="btn primary block" data-action="start-fresh">Start with my clients</button>' +
       '<button class="btn block" data-action="restore-open">Load a setup or backup file</button>' +
       '<button class="btn block" data-action="start-example">Try it with example clients</button>' +
+      (syncAvailable() ? '<p class="muted" style="margin:8px 0 0">Already using it on another phone?</p><button class="btn block" data-action="start-drive">Get my data from Google Drive</button>' : "") +
       '</div></div>';
   }
 
@@ -1367,6 +1368,10 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
       }
       case "carer-remove": state.carers.splice(+el.dataset.i, 1); save(); render(); break;
       case "sync-connect": syncNow(); break;
+      case "start-drive":
+        state = blankState(); save(); view.name = "week"; render();
+        syncNow().then(function () { if (sync.lastSync) toast("Loaded " + state.clients.length + " clients from Google Drive"); });
+        break;
       case "sync-now": syncNow(); break;
       case "sync-disconnect":
         if (!el.classList.contains("armed")) { el.classList.add("armed"); el.classList.add("danger"); el.textContent = "Tap again to disconnect"; break; }
