@@ -48,7 +48,7 @@
 html, body { height: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
-  font-family: var(--font-body); font-size: 17px; line-height: 1.45;
+  font-family: var(--font-body); font-size: 18px; line-height: 1.5;
   -webkit-tap-highlight-color: transparent;
 }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -66,6 +66,16 @@ header.top {
 .group { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
 .group .btn { width: 100%; }
 .group.pair { flex-direction: row; }
+.weeknav { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.weeknav .btn { min-height: 52px; padding-inline: 8px; font-size: 1rem; }
+.bigbtn { min-height: 60px; font-size: 1.2rem; border-radius: 16px; margin-bottom: 14px; }
+.sheettop { position: sticky; top: -8px; z-index: 3; background: var(--bg); display: flex; align-items: center; gap: 10px; margin-inline: -16px; padding: 12px 16px 8px; }
+.sheettop h2 { flex: 1; min-width: 0; margin: 0 !important; }
+.closebtn { flex: none; min-height: 44px; padding-inline: 14px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); font-weight: 700; }
+details.more { margin-top: 30px; }
+details.more > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: center; min-height: 52px; border-radius: 12px; border: 1.5px dashed var(--line); color: var(--muted); font-weight: 700; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more[open] > summary { margin-bottom: 12px; }
 .totalbar { margin: 0; display: flex; justify-content: space-between; align-items: baseline; background: var(--accent-soft); color: var(--accent); border-radius: var(--radius); padding: 12px 16px; font-weight: 700; }
 .totalbar b { font-size: 1.2rem; }
 .group.pair .btn { flex: 1; min-width: 0; padding-inline: 10px; }
@@ -88,7 +98,7 @@ header.top .sub { display: block; font-family: var(--font-body); font-weight: 40
 .btn.danger { color: var(--bad); border-color: var(--bad); background: transparent; }
 .btn.danger.armed { background: var(--bad); color: var(--surface); }
 .btn.block { width: 100%; }
-.btn.small { min-height: 38px; padding-inline: 12px; font-size: .92rem; }
+.btn.small { min-height: 44px; padding-inline: 14px; font-size: .95rem; }
 .linkbtn { background: none; border: 0; color: var(--accent); font-weight: 700; padding: 8px 4px; }
 
 .stack { display: flex; flex-direction: column; gap: 12px; }
@@ -97,13 +107,14 @@ header.top .sub { display: block; font-family: var(--font-body); font-weight: 40
 .grow { flex: 1; min-width: 0; }
 
 .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-block: 4px 14px; }
+.summary.two { grid-template-columns: 1fr 1fr; }
 .summary div { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; min-width: 0; box-shadow: var(--shadow); }
 .summary div.hi { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .summary div.hi span { color: inherit; opacity: .85; }
 .summary div.owe { background: var(--warn-soft); border-color: transparent; color: var(--warn); }
 .summary div.owe span { color: inherit; }
 .summary b { display: block; font-family: var(--font-display); font-size: 1.35rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-.summary span { display: block; line-height: 1.25; font-size: .74rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.summary span { display: block; line-height: 1.25; font-size: .9rem; font-weight: 700; text-transform: none !important; letter-spacing: 0 !important; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
 
 .label { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 700; font-size: 1.12rem; color: var(--ink); margin: 30px 0 10px; letter-spacing: -0.005em; }
 .label::before { content: ""; flex: none; width: 4px; height: 1.05em; border-radius: 2px; background: var(--accent); }
@@ -121,7 +132,10 @@ header.top .sub { display: block; font-family: var(--font-body); font-weight: 40
 .datebox b { display: block; font-family: var(--font-display); font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .datebox span { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .day.today .datebox { background: var(--accent); color: var(--accent-ink); }
-.day.empty .datebox { background: var(--sunk); color: var(--muted); }
+.day.empty .datebox { background: var(--sunk); color: var(--muted); width: 40px; padding: 2px 0; }
+.day.empty .datebox b { font-size: 1.05rem; }
+.day.empty .dayhead { padding-block: 6px; }
+.day.empty { box-shadow: none; }
 .dayhead h3 { margin: 0; font-size: 1rem; font-weight: 700; flex: 1; min-width: 0; }
 .dayhead h3 small { display: block; font-weight: 400; font-size: .86rem; color: var(--muted); }
 .day.empty .dayhead h3 { color: var(--muted); font-weight: 400; }
@@ -228,7 +242,7 @@ nav.tabs button[aria-current="page"] svg { background: var(--accent-soft); }
 .sheet h2 { font-family: var(--font-display); font-weight: 800; font-size: 1.35rem; margin: 6px 0 14px; }
 .sheet .actions { display: flex; gap: 10px; margin-top: 8px; position: sticky; bottom: calc(-24px - env(safe-area-inset-bottom, 0px)); z-index: 2; background: var(--bg); margin-inline: -16px; padding-inline: 16px; padding-block: 10px calc(24px + env(safe-area-inset-bottom, 0px)); margin-bottom: calc(-24px - env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); }
 .sheet .stack > .field { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px 14px; gap: 10px; box-shadow: var(--shadow); }
-.sheet .stack > .field > span:first-child { font-size: .78rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.sheet .stack > .field > span:first-child { font-size: 1.05rem; color: var(--ink); }
 .sheet .stack > .field > span:first-child .hint { text-transform: none; letter-spacing: 0; }
 .sheet .stack > .field .chip:not([aria-pressed="true"]), .sheet .stack > .field .stepper button { background: var(--sunk); }
 .sheet .actions .btn { flex: 1; }
@@ -292,7 +306,7 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
     <button data-nav="week" id="nav-week"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Week</button>
     <button data-nav="clients" id="nav-clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.8.7 3 2.4 3.5 5.2"/></svg>Clients</button>
     <button data-nav="invoices" id="nav-invoices"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h7"/></svg>Invoices</button>
-    <button data-nav="more" id="nav-more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>More</button>
+    <button data-nav="more" id="nav-more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>Settings</button>
   </div>
 </nav>
 <button class="fab" id="fab" data-action="log-new" hidden>+ Log care</button>
@@ -731,7 +745,7 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
     var tabs = document.getElementById("tabs"), fab = document.getElementById("fab");
     if (!state) { tabs.hidden = true; fab.hidden = true; app.innerHTML = renderWelcome(); return; }
     tabs.hidden = false;
-    fab.hidden = !(view.name === "week" || view.name === "client");
+    fab.hidden = true;
     var top = view.name === "client" || view.name === "invoice" ? (view.name === "client" ? "clients" : "invoices") : view.name;
     ["week", "clients", "invoices", "more"].forEach(function (n) {
       var b = document.getElementById("nav-" + n);
@@ -776,23 +790,13 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
     });
     var isThis = ws === weekStart(t);
     var title = isThis ? "This week" : (ws === addDays(weekStart(t), -7) ? "Last week" : "Week of " + fmtShort(ws));
-    var h = '<header class="top">' +
-      '<button class="iconbtn" data-action="week-prev" aria-label="Previous week">&#8249;</button>' +
-      '<h1>' + esc(title) + '<span class="sub">' + fmtShort(ws) + " to " + fmtShort(we) + "</span></h1>" +
-      (isThis ? "" : '<button class="btn small" data-action="week-today">Today</button>') +
-      '<button class="iconbtn" data-action="week-next" aria-label="Next week">&#8250;</button>' +
-      "</header>";
+    var h = '<header class="top"><h1>' + esc(title) + '<span class="sub">' + fmtShort(ws) + " to " + fmtShort(we) + "</span></h1>" +
+      (isThis ? "" : '<button class="btn small" data-action="week-today">Back to this week</button>') + "</header>";
+    h += '<button class="btn primary block bigbtn" data-action="log-new">+ Log care</button>';
     if (syncAvailable() && sync.connected && (!tokenValid() || sync.error) && (sync.dirty || !sync.lastSync || Date.now() - sync.lastSync > 864e5)) {
       h += '<button class="syncbar" data-action="sync-now"><span class="grow">' + (sync.dirty ? "You have changes not saved to Google Drive." : "Sync with Google Drive to keep both phones up to date.") + "</span><b>Sync</b></button>";
     }
-    h += '<div class="summary"><div class="hi"><b>' + num(totalH) + '</b><span>Hours</span></div><div><b>' + moneyShort(Math.round(totalV)) + '</b><span>Earned</span></div><div><b>' + moneyShort(Math.round(extras)) + '</b><span>Extras</span></div></div>';
-    var ids = Object.keys(byClient).sort(function (a, b) { return byClient[b].v - byClient[a].v; });
-    if (ids.length) {
-      h += '<div class="clientstrip">' + ids.map(function (id) {
-        var b = byClient[id];
-        return '<button class="cs" data-action="open-client" data-id="' + id + '">' + esc(clientName(id)) + " <b>" + (b.h ? num(b.h) + "h" : money(b.v)) + "</b></button>";
-      }).join("") + "</div>";
-    }
+    h += '<div class="summary two"><div class="hi"><b>' + num(totalH) + '</b><span>Hours worked</span></div><div><b>' + money(totalV) + '</b><span>Earned</span></div></div>';
     h += '<div class="days">';
     for (var i = 0; i < 7; i++) {
       var d = addDays(ws, i);
@@ -802,11 +806,13 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
       h += '<section class="day' + (d === t ? " today" : "") + (de.length ? "" : " empty") + '"><div class="dayhead">' +
         '<div class="datebox"><b>' + dd.getDate() + "</b><span>" + DAY[dd.getDay()].slice(0, 3) + "</span></div>" +
         "<h3>" + DAY[dd.getDay()] + (d === t ? '<span class="todaytag">Today</span>' : "") + "<small>" + (de.length ? (dh ? hrs(dh) + " · " : "") + money(dv) : "Nothing logged") + "</small></h3>" +
-        '<button class="addbtn" data-action="log-new" data-date="' + d + '" aria-label="Log care on ' + fmtDay(d) + '">+ Add</button></div>';
+        "</div>";
       de.forEach(function (e) { h += entryRow(e, false); });
       h += "</section>";
     }
-    return h + "</div>";
+    h += "</div>";
+    h += '<div class="weeknav" style="margin-top:16px"><button class="btn" data-action="week-prev">&#8249; Previous week</button><button class="btn" data-action="week-next">Next week &#8250;</button></div>';
+    return h;
   }
 
   function entryRow(e, showDate, hideClient) {
@@ -872,7 +878,7 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
     h += '<div class="label">Hours per week</div><div class="card"><div class="bars">' + weeks.map(function (w, i) {
       return '<div class="b' + (i === 7 ? " cur" : "") + '"><span>' + (w.h ? num(w.h) : "") + '</span><i style="height:' + Math.round((w.h / max) * 80) + 'px"></i></div>';
     }).join("") + '</div><div class="barlabels">' + weeks.map(function (w, i) { var d0 = parse(w.ws); return "<span>" + (i === 7 ? "Now" : d0.getDate() + "/" + (d0.getMonth() + 1)) + "</span>"; }).join("") + "</div></div>";
-    h += '<div class="row" style="margin-top:14px"><button class="btn primary grow" data-action="mark-invoiced" data-id="' + id + '"' + (u.length ? "" : " disabled") + '>Mark hours as invoiced</button></div>';
+    h += '<div class="stack" style="margin-top:14px"><button class="btn primary block bigbtn" style="margin:0" data-action="log-new">+ Log care for ' + esc(c.name) + '</button><button class="btn block" data-action="mark-invoiced" data-id="' + id + '"' + (u.length ? "" : " disabled") + '>Mark hours as invoiced</button></div>';
     h += '<div class="label">Not invoiced yet (' + u.length + ")</div>";
     if (!u.length) h += '<p class="muted">Everything logged for ' + esc(c.name) + " is on an invoice.</p>";
     else h += '<div class="card entries">' + u.slice().reverse().map(function (e) { return entryRow(e, true, true); }).join("") + "</div>";
@@ -977,20 +983,20 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
     else h += '<div style="padding:4px 14px"><table class="lines"><tbody>' + inv.payments.map(function (p, i) {
       return "<tr><td>" + fmtUK(p.date) + (p.note ? '<br><span class="muted">' + esc(p.note) + "</span>" : "") + ' <button class="linkbtn" data-action="pay-remove" data-id="' + inv.id + '" data-i="' + i + '">Remove</button></td><td>' + money(p.amount) + "</td></tr>";
     }).join("") + "</tbody></table></div>";
-    if (bal > 0.004) h += '<div class="group pair"><button class="btn primary grow" data-action="pay-full" data-id="' + inv.id + '">Paid in full</button><button class="btn grow" data-action="pay-open" data-id="' + inv.id + '">Part payment</button></div>';
+    if (bal > 0.004) h += '<div class="group pair"><button class="btn primary grow" data-action="pay-full" data-id="' + inv.id + '">Paid in full</button><button class="btn grow" data-action="pay-open" data-id="' + inv.id + '">Part paid</button></div>';
     else h += '<div style="height:10px"></div>';
     h += "</div>";
-    h += '<div class="label">Other options</div><div class="card group">';
+    h += '<details class="more"><summary>More options for this invoice</summary><div class="card group">';
     h += '<button class="btn block" data-action="inv-outstanding" data-id="' + inv.id + '">' + (inv.outstanding ? "Edit outstanding note" : "Mark as outstanding, with a note") + "</button>";
     h += '<button class="btn block" data-action="inv-copy" data-id="' + inv.id + '">Copy hours breakdown</button>';
     h += '<label class="btn block" for="inv-pdf">' + (inv.pdfId ? "Replace the invoice PDF" : "Attach the invoice PDF") + '</label><input type="file" id="inv-pdf" data-id="' + inv.id + '" accept="application/pdf,.pdf" hidden></div>';
-    h += '<div class="dangerzone"><button class="btn danger block" data-action="inv-delete" data-id="' + inv.id + '">Delete this invoice record</button>';
-    h += '<p class="muted" style="font-size:.85rem;margin:0">Deleting puts its hours back into "Not invoiced yet". Nothing is sent to the client.</p></div>';
+    h += '<div class="dangerzone" style="margin-top:16px"><button class="btn danger block" data-action="inv-delete" data-id="' + inv.id + '">Delete this invoice record</button>';
+    h += '<p class="muted" style="font-size:.85rem;margin:0">Deleting puts its hours back into "Not invoiced yet". Nothing is sent to the client.</p></div></details>';
     return h;
   }
 
   function renderMore() {
-    var h = '<header class="top"><h1>More</h1></header>';
+    var h = '<header class="top"><h1>Settings</h1></header>';
     h += '<div class="label">People you work with</div><div class="card" style="padding:14px"><div class="chips" id="carer-chips">' +
       (state.carers.length ? state.carers.map(function (n, i) { return '<button class="chip" data-action="carer-remove" data-i="' + i + '" aria-label="Remove ' + esc(n) + '">' + esc(n) + ' &times;</button>'; }).join("") : '<span class="muted">Nobody added yet.</span>') +
       '</div><div class="row" style="margin-top:12px"><input type="text" id="carer-new" placeholder="Their name" autocomplete="off"><button class="btn" data-action="carer-add">Add</button></div></div>';
@@ -1034,7 +1040,7 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
     else if (sheet.type === "restore") inner = sheetRestore();
     else if (sheet.type === "backup") inner = sheetBackup();
     var scroll = root.querySelector(".sheet") ? root.querySelector(".sheet").scrollTop : 0;
-    root.innerHTML = '<div class="sheet-wrap" data-action="sheet-bg"><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>' + inner + "</div></div>";
+    root.innerHTML = '<div class="sheet-wrap" data-action="sheet-bg"><div class="sheet" role="dialog" aria-modal="true">' + inner.replace(/^<h2>([\s\S]*?)<\/h2>/, '<div class="sheettop"><h2>$1</h2><button class="closebtn" data-action="sheet-close">&#10005; Close</button></div>') + "</div></div>";
     var s = root.querySelector(".sheet"); if (s) s.scrollTop = scroll;
     fillPhotos(root);
   }
@@ -1060,28 +1066,28 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
     var d = sheet.data, c = d.clientId && client(d.clientId);
     var clients = state.clients.filter(function (x) { return !x.archived || x.id === d.clientId; }).sort(function (a, b) { return a.name.localeCompare(b.name); });
     var h = "<h2>" + (d.id ? "Edit entry" : "Log care") + "</h2><div class=\"stack\">";
-    h += '<div class="seg" role="group" aria-label="Type"><button data-action="e-kind" data-v="care" aria-pressed="' + (d.kind === "care") + '">Care</button><button data-action="e-kind" data-v="extra" aria-pressed="' + (d.kind === "extra") + '">Extra (food, trips)</button></div>';
+    h += '<div class="seg" role="group" aria-label="Type"><button data-action="e-kind" data-v="care" aria-pressed="' + (d.kind === "care") + '">Hours worked</button><button data-action="e-kind" data-v="extra" aria-pressed="' + (d.kind === "extra") + '">Money spent</button></div>';
     if (!clients.length) h += '<p class="note">Add a client first, on the Clients tab.</p>';
-    h += '<div class="field"><span>Client</span><div class="chips">' + clients.map(function (x) {
+    h += '<div class="field"><span>Who for?</span><div class="chips">' + clients.map(function (x) {
       return '<button class="chip" data-action="e-client" data-id="' + x.id + '" aria-pressed="' + (x.id === d.clientId) + '">' + esc(x.name) + "</button>";
     }).join("") + "</div></div>";
     var yest = addDays(today(), -1);
-    h += '<div class="field"><span>Date</span><div class="row"><input type="date" id="e-date" value="' + d.date + '" class="grow">' +
-      '<button class="btn small" data-action="e-date" data-v="' + today() + '">Today</button><button class="btn small" data-action="e-date" data-v="' + yest + '">Yesterday</button></div></div>';
+    h += '<div class="field"><span>Which day?</span><div class="chips"><button class="chip" data-action="e-date" data-v="' + today() + '" aria-pressed="' + (d.date === today()) + '">Today</button><button class="chip" data-action="e-date" data-v="' + yest + '" aria-pressed="' + (d.date === yest) + '">Yesterday</button></div>' +
+      '<label class="hint" style="display:flex;flex-direction:column;gap:6px">Or pick another day:<input type="date" id="e-date" value="' + d.date + '"></label></div>';
     if (d.kind === "care") {
       if (c) {
         if (!c.rates.length) h += '<p class="note">' + esc(c.name) + ' has no rates yet. <button class="linkbtn" data-action="client-edit" data-id="' + c.id + '">Add a rate</button></p>';
-        else h += '<div class="field"><span>Type of care</span><div class="chips">' + c.rates.map(function (r) {
+        else if (c.rates.length > 1) h += '<div class="field"><span>Which kind?</span><div class="chips">' + c.rates.map(function (r) {
           return '<button class="chip" data-action="e-rate" data-id="' + r.id + '" aria-pressed="' + (r.id === d.rateId) + '">' + esc(r.label) + "<small>" + moneyShort(r.price) + " per " + (UNIT[r.unit] || UNIT.hour)[0] + "</small></button>";
         }).join("") + "</div></div>";
       }
       var rate = c && c.rates.find(function (r) { return r.id === d.rateId; });
       var unit = rate ? rate.unit : "hour";
-      h += '<div class="field"><span>' + (unit === "hour" ? "Hours" : "How many " + unitWord(unit, 2)) + '</span><div class="stepper"><button data-action="e-step" data-v="-1" aria-label="Less">&minus;</button><input type="number" id="e-qty" inputmode="decimal" step="0.25" min="0" value="' + esc(d.qty) + '"><button data-action="e-step" data-v="1" aria-label="More">+</button></div>' +
-        (unit === "hour" ? '<div class="chips">' + [0.5, 0.75, 1, 1.5, 2, 3].map(function (q) { return '<button class="chip" data-action="e-qty" data-v="' + q + '" aria-pressed="' + (+d.qty === q) + '">' + num(q) + "</button>"; }).join("") + "</div>" : "") + "</div>";
-      h += '<div class="field"><span>Worked with <span class="hint">(optional)</span></span><div class="chips">' + state.carers.map(function (n) {
+      h += '<div class="field"><span>' + (unit === "hour" ? "How many hours?" : "How many " + unitWord(unit, 2) + "?") + '</span><div class="stepper"><button data-action="e-step" data-v="-1" aria-label="Less">&minus;</button><input type="number" id="e-qty" inputmode="decimal" step="0.25" min="0" value="' + esc(d.qty) + '"><button data-action="e-step" data-v="1" aria-label="More">+</button></div>' +
+        (unit === "hour" ? '<div class="chips">' + [0.5, 1, 1.5, 2, 3, 4].map(function (q) { return '<button class="chip" data-action="e-qty" data-v="' + q + '" aria-pressed="' + (+d.qty === q) + '">' + num(q) + "</button>"; }).join("") + "</div>" : "") + "</div>";
+      h += '<div class="field"><span>Anyone with you? <span class="hint">(leave blank if not)</span></span><div class="chips">' + state.carers.map(function (n) {
         return '<button class="chip" data-action="e-with" data-v="' + esc(n) + '" aria-pressed="' + (d.workedWith.indexOf(n) >= 0) + '">' + esc(n) + "</button>";
-      }).join("") + '<button class="chip" data-action="e-with-add">+ Someone new</button></div>';
+      }).join("") + '<button class="chip" data-action="e-with-add">+ Add a name</button></div>';
       if (d.addingCarer) h += '<div class="row"><input type="text" id="e-carer-new" placeholder="Their name" autocomplete="off"><button class="btn" data-action="e-with-save">Add</button></div>';
       if (d.workedWith.length) h += '<label class="check"><input type="checkbox" id="e-billothers"' + (d.billOthers ? " checked" : "") + '> Charge for ' + (d.workedWith.length === 1 ? "both carers" : "all " + (d.workedWith.length + 1) + " carers") + " (double-up call)</label>";
       h += "</div>";
@@ -1090,9 +1096,9 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
         h += '<p class="totalbar"><span>Comes to</span><b class="num" id="e-total">' + money(entryValue(tmp)) + "</b></p>";
       }
     } else {
-      h += '<div class="field"><span>What was it?</span><input type="text" id="e-desc" value="' + esc(d.description) + '" placeholder="e.g. Food shopping" autocomplete="off"><div class="chips">' +
+      h += '<div class="field"><span>What did you pay for?</span><input type="text" id="e-desc" value="' + esc(d.description) + '" placeholder="e.g. Food shopping" autocomplete="off"><div class="chips">' +
         ["Food shopping", "Hospital visit", "Prescription", "Taxi or fuel"].map(function (s) { return '<button class="chip" data-action="e-desc" data-v="' + s + '">' + s + "</button>"; }).join("") + "</div></div>";
-      h += '<div class="field"><span>Amount (£)</span><input type="number" id="e-amount" inputmode="decimal" step="0.01" min="0" value="' + esc(d.amount) + '" placeholder="0.00"></div>';
+      h += '<div class="field"><span>How much? (£)</span><input type="number" id="e-amount" inputmode="decimal" step="0.01" min="0" value="' + esc(d.amount) + '" placeholder="0.00"></div>';
       h += '<div class="field"><span>Receipt photo <span class="hint">(optional)</span></span>';
       if (d.photoData || d.photoId) {
         h += '<div class="receipt"><button class="thumb" data-action="e-photo-view" aria-label="View receipt"><img alt="Receipt" ' + (d.photoData ? 'src="' + d.photoData + '"' : 'data-photo="' + esc(d.photoId) + '"') + '></button>' +
@@ -1100,10 +1106,11 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
       } else h += '<label class="btn block" for="e-photo">' + (d.photoBusy ? "Adding photo..." : "Take or choose a photo") + "</label>";
       h += '<input type="file" id="e-photo" accept="image/*" hidden></div>';
     }
-    h += '<label class="field"><span>Note <span class="hint">(optional, only you see this)</span></span><textarea id="e-note">' + esc(d.note) + "</textarea></label>";
+    if (d.note || d.showNote) h += '<label class="field"><span>Note <span class="hint">(only you see this)</span></span><textarea id="e-note">' + esc(d.note) + "</textarea></label>";
+    else h += '<button class="linkbtn" style="align-self:flex-start" data-action="e-note-show">+ Add a note</button>';
     if (d.invoiceId) { var inv = invoice(d.invoiceId); if (inv) h += '<p class="note">This is already on invoice No. ' + esc(inv.number) + ". Changes here also change that invoice record's total.</p>"; }
     if (d.error) h += '<p class="note">' + esc(d.error) + "</p>";
-    h += '<div class="actions">' + (d.id ? '<button class="btn danger' + (d.armDelete ? " armed" : "") + '" data-action="e-delete">' + (d.armDelete ? "Tap again to delete" : "Delete") + "</button>" : '<button class="btn" data-action="sheet-close">Cancel</button>') +
+    h += '<div class="actions">' + (d.id ? '<button class="btn danger' + (d.armDelete ? " armed" : "") + '" data-action="e-delete">' + (d.armDelete ? "Tap again to delete" : "Delete") + "</button>" : "") +
       '<button class="btn primary" data-action="e-save">Save</button></div></div>';
     return h;
   }
@@ -1301,7 +1308,7 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
   }
   function sheetBackup() {
     var d = sheet.data, ready = !!d.text;
-    return "<h2>Backup</h2><div class=\"stack\"><p style=\"margin:0\">Send the backup file to yourself on WhatsApp or email. It includes receipt photos. To restore, open More, then Restore, and pick that file.</p>" +
+    return "<h2>Backup</h2><div class=\"stack\"><p style=\"margin:0\">Send the backup file to yourself on WhatsApp or email. It includes receipt photos. To restore, open Settings, then Restore, and pick that file.</p>" +
       '<button class="btn primary block" data-action="backup-file"' + (ready ? "" : " disabled") + ">" + (ready ? "Share backup file" : "Preparing backup...") + "</button>" +
       '<button class="btn block" data-action="backup-copy"' + (ready ? "" : " disabled") + ">Copy backup as text</button>" +
       '<pre class="copytext" hidden>' + esc(d.text || "") + "</pre>" +
@@ -1403,6 +1410,7 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
       case "e-kind": sheet.data.kind = el.dataset.v; sheet.data.error = ""; renderSheet(); break;
       case "e-client": sheet.data.clientId = id; applyClientDefaults(sheet.data); sheet.data.error = ""; renderSheet(); break;
       case "e-date": sheet.data.date = el.dataset.v; renderSheet(); break;
+      case "e-note-show": sheet.data.showNote = true; renderSheet(); var nt = document.getElementById("e-note"); if (nt) nt.focus(); break;
       case "e-rate": sheet.data.rateId = id; renderSheet(); break;
       case "e-qty": sheet.data.qty = +el.dataset.v; renderSheet(); break;
       case "e-step": { var q = Math.max(0, (parseFloat(sheet.data.qty) || 0) + (+el.dataset.v) * (sheet.data.kind === "care" && isHourly() ? 0.25 : 1)); sheet.data.qty = q; renderSheet(); break; }
@@ -1519,7 +1527,7 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
       var fr = new FileReader(); fr.onload = function () { doRestore(String(fr.result)); }; fr.readAsText(t.files[0]); return;
     }
     if (t.id === "due-days") { state.settings.dueDays = Math.max(0, parseInt(t.value, 10) || 0); save(); toast("Saved"); return; }
-    if (sheet && sheet.type === "entry" && t.id === "e-billothers") { readEntryInputs(); renderSheet(); return; }
+    if (sheet && sheet.type === "entry" && (t.id === "e-billothers" || t.id === "e-date")) { readEntryInputs(); renderSheet(); return; }
     if (t.id === "inv-pdf" && t.files && t.files[0]) {
       var pinv = invoice(t.dataset.id), pf = t.files[0];
       if (!pinv) return;
