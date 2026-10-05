@@ -19,4 +19,4 @@ mkdir -p dist
   cat src/app.html
   printf '%s\n' "<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){});}</script>" '</body>' '</html>'
 } > dist/index.html
-cp static/* dist/
+cp -r static/. dist/

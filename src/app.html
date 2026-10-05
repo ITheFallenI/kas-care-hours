@@ -225,13 +225,16 @@ nav.tabs button[aria-current="page"] { color: var(--accent); }
 .thumb { width: 96px; height: 96px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); padding: 0; background: var(--surface); flex: none; }
 .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .thumbs { display: flex; flex-wrap: wrap; gap: 10px; }
-.tag.receipt { border: 1px solid var(--line); color: var(--muted); }
+.tag.file { border: 1px solid var(--line); color: var(--muted); }
 .viewer {
   position: fixed; inset: 0; z-index: 40; background: rgba(0, 0, 0, .92);
   display: flex; flex-direction: column; gap: 12px;
   padding-inline: 16px; padding-block: calc(env(safe-area-inset-top, 0px) + 12px) calc(env(safe-area-inset-bottom, 0px) + 16px);
 }
 .viewer img { flex: 1; min-height: 0; width: 100%; object-fit: contain; }
+.pdfpages { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: 12px; -webkit-overflow-scrolling: touch; }
+.pdfpages canvas { width: 100%; max-width: 820px; height: auto; background: #fff; border-radius: 4px; }
+.pdfpages p { color: #fff; }
 pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-family: var(--font-body); font-size: .9rem; margin: 0; max-height: 220px; overflow: auto; }
 @media (prefers-reduced-motion: no-preference) {
   .sheet { animation: rise .22s ease-out; }
@@ -391,6 +394,55 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
       '<div class="row"><button class="btn grow" data-action="photo-close">Close</button><button class="btn primary grow" data-action="photo-share">Share</button></div></div>';
   }
   function closeViewer() { var root = document.getElementById("photo-root"); root.innerHTML = ""; delete root.dataset.src; }
+
+  // Invoice PDFs are drawn page by page with PDF.js, so they open the same way on iPhone, Android and computers.
+  // Served from the app itself (works offline); the CDN copy is a fallback for the preview page.
+  var PDFJS_SOURCES = ["vendor/pdfjs/", "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/"];
+  var pdfjsLoading = null;
+  function loadPdfJs() {
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    if (!pdfjsLoading) pdfjsLoading = new Promise(function (res, rej) {
+      var tryAt = function (i) {
+        if (i >= PDFJS_SOURCES.length) { pdfjsLoading = null; rej(new Error("Couldn't load the PDF viewer. Check you're online.")); return; }
+        var sc = document.createElement("script");
+        sc.src = PDFJS_SOURCES[i] + "pdf.min.js";
+        sc.onload = function () { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_SOURCES[i] + "pdf.worker.min.js"; res(window.pdfjsLib); };
+        sc.onerror = function () { sc.remove(); tryAt(i + 1); };
+        document.head.appendChild(sc);
+      };
+      tryAt(0);
+    });
+    return pdfjsLoading;
+  }
+  function openPdf(id, name) {
+    var root = document.getElementById("photo-root");
+    root.dataset.name = name || "invoice.pdf";
+    root.innerHTML = '<div class="viewer" role="dialog" aria-label="Invoice PDF"><div class="pdfpages" id="pdf-pages"><p>Opening...</p></div>' +
+      '<div class="row"><button class="btn grow" data-action="photo-close">Close</button><button class="btn primary grow" data-action="photo-share" id="pdf-share" disabled>Share</button></div></div>';
+    var pages = function () { return document.getElementById("pdf-pages"); };
+    getPhoto(id).then(function (data) {
+      if (!data) throw new Error("That PDF isn't on this phone yet. Try Sync now.");
+      if (!pages()) return;
+      root.dataset.src = data;
+      document.getElementById("pdf-share").disabled = false;
+      var bin = atob(data.split(",")[1]), arr = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      return loadPdfJs().then(function (lib) { return lib.getDocument({ data: arr }).promise; }).then(function (pdf) {
+        var box = pages(); if (!box) return;
+        box.innerHTML = "";
+        var width = Math.min(box.clientWidth || 360, 820), ratio = window.devicePixelRatio || 1, chain = Promise.resolve();
+        for (var n = 1; n <= pdf.numPages; n++) (function (n) {
+          chain = chain.then(function () { return pdf.getPage(n); }).then(function (page) {
+            var vp = page.getViewport({ scale: 1 }), scale = (width / vp.width) * ratio, v = page.getViewport({ scale: scale });
+            var c = document.createElement("canvas"); c.width = v.width; c.height = v.height;
+            if (pages()) pages().appendChild(c);
+            return page.render({ canvasContext: c.getContext("2d"), viewport: v }).promise;
+          });
+        })(n);
+        return chain;
+      });
+    }).catch(function (e) { var box = pages(); if (box) box.innerHTML = "<p>" + esc(e.message || "Couldn't open that PDF.") + "</p>"; });
+  }
   function sharePhoto() {
     var root = document.getElementById("photo-root");
     try {
@@ -527,14 +579,17 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
       return files[DATA_NAME] ? uploadReplace(files[DATA_NAME], data) : uploadNew(folderId, DATA_NAME, data);
     }).then(function () {
       // Receipt photos: upload ones Drive doesn't have, download ones this phone doesn't have.
-      var jobs = state.entries.filter(function (e) { return e.photoId; }).map(function (e) {
-        var name = "receipt-" + e.photoId + ".jpg";
-        return getPhoto(e.photoId).catch(function () { return null; }).then(function (local) {
-          if (local && !files[name]) return uploadNew(folderId, name, dataURLToFile(local, name));
-          if (!local && files[name]) return api(DRIVE + "files/" + files[name] + "?alt=media").then(function (r) { return r.blob(); }).then(blobToDataURL).then(function (d) { return putPhoto(e.photoId, d); });
+      // Invoice PDFs the same way.
+      var wanted = state.entries.filter(function (e) { return e.photoId; }).map(function (e) { return { id: e.photoId, name: "receipt-" + e.photoId + ".jpg" }; })
+        .concat(state.invoices.filter(function (i) { return i.pdfId; }).map(function (i) { return { id: i.pdfId, name: "invoice-" + i.pdfId + ".pdf" }; }));
+      var chain = Promise.resolve();
+      wanted.forEach(function (w) {
+        chain = chain.then(function () { return getPhoto(w.id).catch(function () { return null; }); }).then(function (local) {
+          if (local && !files[w.name]) return uploadNew(folderId, w.name, dataURLToFile(local, w.name));
+          if (!local && files[w.name]) return api(DRIVE + "files/" + files[w.name] + "?alt=media").then(function (r) { return r.blob(); }).then(blobToDataURL).then(function (d) { return putPhoto(w.id, d); });
         });
       });
-      return Promise.all(jobs);
+      return chain;
     }).then(function () {
       sync.lastSync = Date.now(); sync.dirty = false; sync.everConnected = true; saveSync();
     }).catch(function (e) {
@@ -580,7 +635,7 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
   function moneyShort(n) { n = +n || 0; return Number.isInteger(n) ? "£" + n : money(n); }
   function num(n) { n = Math.round((+n || 0) * 100) / 100; return String(n); }
   function hrs(n) { n = +n || 0; return num(n) + (n === 1 ? " hr" : " hrs"); }
-  var UNIT = { hour: ["hour", "hours", "hr"], session: ["session", "sessions", "session"], visit: ["visit", "visits", "visit"], fixed: ["item", "items", "item"] };
+  var UNIT = { hour: ["hour", "hours", "hr"], session: ["session", "sessions", "session"], visit: ["visit", "visits", "visit"], fixed: ["item", "items", "item"], night: ["night", "nights", "night"] };
   function unitWord(u, q) { var w = UNIT[u] || UNIT.hour; return q === 1 ? w[0] : w[1]; }
   function qtyText(e) { if (e.unit === "hour") return hrs(e.qty); return num(e.qty) + " " + unitWord(e.unit, +e.qty); }
 
@@ -715,7 +770,7 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
     if (e.workedWith && e.workedWith.length) meta.push("with " + esc(e.workedWith.join(", ")));
     var tags = "";
     if (e.kind === "extra") tags += ' <span class="tag extra">Extra</span>';
-    if (e.photoId) tags += ' <span class="tag receipt">Receipt</span>';
+    if (e.photoId) tags += ' <span class="tag file">Receipt</span>';
     if (e.invoiceId) { var inv = invoice(e.invoiceId); if (inv) tags += ' <span class="tag billed">Inv ' + esc(inv.number) + "</span>"; }
     var sub = e.kind === "care" && carersBilled(e) > 1 ? "<small>" + carersBilled(e) + " carers</small>" : (e.note ? "<small>note</small>" : "");
     return '<button class="entry" data-action="edit-entry" data-id="' + e.id + '">' +
@@ -784,7 +839,7 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
 
   function invoiceRow(inv) {
     var st = invStatus(inv), bal = inv.total - paidSum(inv);
-    return '<button class="item" data-action="open-invoice" data-id="' + inv.id + '"><span class="grow"><span class="t">' + esc(clientName(inv.clientId)) + " · No. " + esc(inv.number) + '</span><br><span class="s">' + fmtShort(inv.date) + (inv.from ? " · " + fmtShort(inv.from) + " to " + fmtShort(inv.to) : "") + "</span></span>" +
+    return '<button class="item" data-action="open-invoice" data-id="' + inv.id + '"><span class="grow"><span class="t">' + esc(clientName(inv.clientId)) + " · No. " + esc(inv.number) + "</span>" + (inv.pdfId ? ' <span class="tag file">PDF</span>' : "") + '<br><span class="s">' + fmtShort(inv.date) + (inv.from ? " · " + fmtShort(inv.from) + " to " + fmtShort(inv.to) : "") + "</span></span>" +
       '<span class="r"><b>' + money(inv.total) + '</b><br><span class="pill ' + st.key + '">' + (st.key === "paid" ? "Paid" : st.key === "part" ? money(bal) + " left" : st.text) + "</span></span></button>";
   }
 
@@ -856,7 +911,8 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
       '<span class="pill ' + st.key + '">' + st.text + "</span></header>";
     h += '<div class="summary"><div><b>' + moneyShort(inv.total) + '</b><span>Invoiced</span></div><div><b>' + moneyShort(paid) + '</b><span>Paid</span></div><div><b>' + moneyShort(Math.max(bal, 0)) + '</b><span>Still owed</span></div></div>';
     h += '<p class="muted" style="margin:0">Covers ' + (inv.from ? fmtShort(inv.from) + " to " + fmtShort(inv.to) : "this period") + ". Due " + (inv.dueDate ? fmtUK(inv.dueDate) : "on receipt") + ".</p>";
-    if (inv.outstanding && inv.note) h += '<p class="note">' + esc(inv.note) + "</p>";
+    if (inv.pdfId) h += '<button class="btn primary block" style="margin-top:12px" data-action="pdf-open" data-id="' + esc(inv.pdfId) + '" data-name="' + esc(clientName(inv.clientId) + " invoice " + inv.number + ".pdf") + '">Open invoice PDF</button>';
+    if (inv.note) h += inv.outstanding ? '<p class="note">' + esc(inv.note) + "</p>" : '<p class="muted" style="font-size:.9rem">' + esc(inv.note) + "</p>";
     h += '<div class="label">Lines</div><div class="card" style="padding:4px 14px"><table class="lines"><tbody>' +
       (inv.lines || []).map(function (l) {
         return "<tr><td>" + esc(l.label) + (l.kind === "care" ? '<br><span class="muted">' + num(l.qty) + " " + unitWord(l.unit, l.qty) + " x " + moneyShort(l.price) + "</span>" : ' <span class="tag extra">Extra</span>') + "</td><td>" + money(l.total) + "</td></tr>";
@@ -876,6 +932,7 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
     if (bal > 0.004) h += '<div class="row"><button class="btn primary grow" data-action="pay-full" data-id="' + inv.id + '">Paid in full</button><button class="btn grow" data-action="pay-open" data-id="' + inv.id + '">Part payment</button></div>';
     h += '<button class="btn block" data-action="inv-outstanding" data-id="' + inv.id + '">' + (inv.outstanding ? "Edit outstanding note" : "Mark as outstanding, with a note") + "</button>";
     h += '<button class="btn block" data-action="inv-copy" data-id="' + inv.id + '">Copy hours breakdown</button>';
+    h += '<label class="btn block" for="inv-pdf">' + (inv.pdfId ? "Replace the invoice PDF" : "Attach the invoice PDF") + '</label><input type="file" id="inv-pdf" data-id="' + inv.id + '" accept="application/pdf,.pdf" hidden>';
     h += '<button class="btn danger block" data-action="inv-delete" data-id="' + inv.id + '">Delete this invoice record</button>';
     h += '<p class="muted" style="font-size:.85rem;margin:0">Deleting puts its hours back into "Not invoiced yet". Nothing is sent to the client.</p></div>';
     return h;
@@ -1187,6 +1244,7 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
     return allPhotos().catch(function () { return {}; }).then(function (all) {
       var photos = {};
       state.entries.forEach(function (e) { if (e.photoId && all[e.photoId]) photos[e.photoId] = all[e.photoId]; });
+      state.invoices.forEach(function (i) { if (i.pdfId && all[i.pdfId]) photos[i.pdfId] = all[i.pdfId]; });
       return JSON.stringify(Object.assign({ exportedAt: new Date().toISOString(), app: "kas-care-hours" }, state, { photos: photos }));
     });
   }
@@ -1313,6 +1371,7 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
       case "photo-open": getPhoto(id).then(function (v) { if (v) openViewer(v, el.dataset.name); else toast("That photo isn't on this phone."); }); break;
       case "photo-close": if (ev.target === el || el.tagName === "BUTTON") closeViewer(); break;
       case "photo-share": sharePhoto(); break;
+      case "pdf-open": openPdf(id, el.dataset.name); break;
       case "e-save": saveEntry(); break;
       case "e-delete":
         if (!sheet.data.armDelete) { sheet.data.armDelete = true; renderSheet(); break; }
@@ -1363,6 +1422,7 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
       case "inv-delete":
         if (!el.classList.contains("armed")) { el.classList.add("armed"); el.textContent = "Tap again to delete"; break; }
         state.entries.forEach(function (e) { if (e.invoiceId === id) delete e.invoiceId; });
+        var goneInv = invoice(id); if (goneInv && goneInv.pdfId) delPhoto(goneInv.pdfId);
         state.invoices = state.invoices.filter(function (i) { return i.id !== id; });
         save(); go("invoices"); toast("Invoice record deleted"); break;
       case "carer-add": {
@@ -1409,6 +1469,17 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
     }
     if (t.id === "due-days") { state.settings.dueDays = Math.max(0, parseInt(t.value, 10) || 0); save(); toast("Saved"); return; }
     if (sheet && sheet.type === "entry" && t.id === "e-billothers") { readEntryInputs(); renderSheet(); return; }
+    if (t.id === "inv-pdf" && t.files && t.files[0]) {
+      var pinv = invoice(t.dataset.id), pf = t.files[0];
+      if (!pinv) return;
+      if (pf.size > 8 * 1024 * 1024) { toast("That PDF is over 8 MB. Pick a smaller file."); return; }
+      blobToDataURL(pf).then(function (data) {
+        if (!/^data:application\/pdf/.test(data)) data = data.replace(/^data:[^;]*/, "data:application/pdf");
+        var old = pinv.pdfId, nid = uid();
+        return putPhoto(nid, data).then(function () { pinv.pdfId = nid; if (old) delPhoto(old); save(); render(); toast("PDF attached"); });
+      }).catch(function () { toast("Couldn't attach that PDF."); });
+      return;
+    }
     if (t.id === "e-photo" && t.files && t.files[0] && sheet && sheet.type === "entry") {
       readEntryInputs(); sheet.data.photoBusy = true; renderSheet();
       var d = sheet.data;
