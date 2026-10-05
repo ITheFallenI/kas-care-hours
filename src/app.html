@@ -457,7 +457,11 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
     opts.headers = Object.assign({ Authorization: "Bearer " + sync.token }, opts.headers || {});
     return fetch(url, opts).then(function (r) {
       if (r.status === 401) { sync.token = null; saveSync(); var e = new Error("Google sign-in expired. Tap Sync to sign in again."); e.auth = true; throw e; }
-      if (!r.ok) return r.text().then(function (t) { throw new Error("Google Drive error " + r.status + ". " + t.slice(0, 120)); });
+      if (!r.ok) return r.text().then(function (t) {
+        if (/accessNotConfigured|has not been used|SERVICE_DISABLED/.test(t)) throw new Error("Google Drive isn't switched on for this app yet. Ask Tyron to enable the Drive API.");
+        if (r.status === 403) throw new Error("Google Drive said no (403). Try Disconnect, then connect again and allow access.");
+        throw new Error("Google Drive had a problem (" + r.status + "). Try Sync now again in a minute.");
+      });
       return r;
     });
   }
