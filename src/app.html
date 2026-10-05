@@ -216,6 +216,11 @@ nav.tabs button[aria-current="page"] { color: var(--accent); }
   box-shadow: 0 6px 20px rgba(0, 0, 0, .2);
   max-width: calc(100% - 32px);
 }
+.syncbar {
+  display: flex; gap: 10px; align-items: center; width: 100%; text-align: left;
+  background: var(--warn-soft); color: var(--ink); border: 0; border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; font-size: .92rem;
+}
+.syncbar b { color: var(--accent); }
 .receipt { display: flex; gap: 12px; align-items: center; }
 .thumb { width: 96px; height: 96px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); padding: 0; background: var(--surface); flex: none; }
 .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -257,12 +262,12 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
   var state = null;
 
   function blankState() {
-    return { version: 1, clients: [], carers: [], entries: [], invoices: [], settings: { dueDays: 7 } };
+    return { version: 1, clients: [], carers: [], entries: [], invoices: [], settings: { dueDays: 7 }, deleted: [], carersUpdatedAt: 0, settingsUpdatedAt: 0 };
   }
   function load() {
     try {
       var raw = localStorage.getItem(KEY);
-      if (raw) { state = normalise(JSON.parse(raw)); return; }
+      if (raw) { state = normalise(JSON.parse(raw)); takeSnapshot(); return; }
     } catch (e) {}
     state = null;
   }
@@ -274,12 +279,46 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
     b.entries = Array.isArray(s.entries) ? s.entries : [];
     b.invoices = Array.isArray(s.invoices) ? s.invoices : [];
     b.settings = Object.assign(b.settings, s.settings || {});
+    b.deleted = Array.isArray(s.deleted) ? s.deleted : [];
+    b.carersUpdatedAt = s.carersUpdatedAt || 0;
+    b.settingsUpdatedAt = s.settingsUpdatedAt || 0;
     b.clients.forEach(function (c) { c.rates = Array.isArray(c.rates) ? c.rates : []; if (!c.nextInvoiceNo) c.nextInvoiceNo = 1; });
     b.invoices.forEach(function (i) { i.payments = Array.isArray(i.payments) ? i.payments : []; });
     return b;
   }
-  function save() {
+  // Every save stamps changed records with updatedAt and records deletions,
+  // so two phones syncing through Google Drive can be merged record by record.
+  var COLLECTIONS = ["clients", "entries", "invoices"];
+  var snap = null;
+  function recordKey(r) { var c = Object.assign({}, r); delete c.updatedAt; return JSON.stringify(c); }
+  function takeSnapshot() {
+    snap = { carers: JSON.stringify(state.carers), settings: JSON.stringify(state.settings) };
+    COLLECTIONS.forEach(function (k) { snap[k] = {}; state[k].forEach(function (r) { snap[k][r.id] = recordKey(r); }); });
+  }
+  function stampChanges() {
+    if (!snap) snap = { carers: "[]", settings: "", clients: {}, entries: {}, invoices: {} };
+    var now = Date.now(), changed = false;
+    COLLECTIONS.forEach(function (k) {
+      var seen = {};
+      state[k].forEach(function (r) {
+        seen[r.id] = true;
+        if (snap[k][r.id] !== recordKey(r)) { r.updatedAt = now; changed = true; }
+      });
+      Object.keys(snap[k]).forEach(function (id) {
+        if (!seen[id]) { state.deleted.push({ type: k, id: id, at: now }); changed = true; }
+      });
+    });
+    if (snap.carers !== JSON.stringify(state.carers)) { state.carersUpdatedAt = now; changed = true; }
+    if (snap.settings !== JSON.stringify(state.settings)) { state.settingsUpdatedAt = now; changed = true; }
+    var cutoff = now - 180 * 864e5;
+    state.deleted = state.deleted.filter(function (d) { return d.at > cutoff; });
+    return changed;
+  }
+  function save(opts) {
+    var changed = opts && opts.noStamp ? false : stampChanges();
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast("Couldn't save on this phone. Make a backup from More."); }
+    takeSnapshot();
+    if (changed && typeof onLocalChange === "function") onLocalChange();
   }
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
 
@@ -359,6 +398,162 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
       if (navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file] }).catch(function () {}); return; }
     } catch (e) {}
     toast("Sharing isn't available here. Press and hold the photo to save it.");
+  }
+
+  // ---------- Google Drive sync ----------
+  // Paste the OAuth client ID from Google Cloud here. Sync stays hidden while it's empty.
+  var GOOGLE_CLIENT_ID = "";
+  var SYNC_KEY = "kasHours.sync";
+  var DRIVE = "https://www.googleapis.com/drive/v3/";
+  var DRIVE_UP = "https://www.googleapis.com/upload/drive/v3/";
+  var FOLDER_NAME = "Kas Care Hours", DATA_NAME = "kas-care-hours-data.json";
+  var sync = loadSync(), syncBusy = false, syncTimer = null, tokenClient = null, gisLoading = null;
+
+  function loadSync() {
+    try { return JSON.parse(localStorage.getItem(SYNC_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function saveSync() { try { localStorage.setItem(SYNC_KEY, JSON.stringify(sync)); } catch (e) {} }
+  function syncAvailable() { return !!GOOGLE_CLIENT_ID; }
+  function tokenValid() { return sync.token && sync.tokenExpires > Date.now() + 60000; }
+  function onLocalChange() {
+    if (!sync.connected) return;
+    sync.dirty = true; saveSync();
+    if (tokenValid()) { clearTimeout(syncTimer); syncTimer = setTimeout(function () { runSync(); }, 3000); }
+  }
+
+  function loadGIS() {
+    if (window.google && google.accounts && google.accounts.oauth2) return Promise.resolve();
+    if (gisLoading) return gisLoading;
+    gisLoading = new Promise(function (res, rej) {
+      var sc = document.createElement("script");
+      sc.src = "https://accounts.google.com/gsi/client"; sc.async = true;
+      sc.onload = function () { res(); };
+      sc.onerror = function () { gisLoading = null; rej(new Error("Couldn't reach Google. Check you're online.")); };
+      document.head.appendChild(sc);
+    });
+    return gisLoading;
+  }
+  // Must be called from a tap: Google opens a small sign-in popup.
+  function signIn() {
+    return loadGIS().then(function () {
+      return new Promise(function (res, rej) {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID,
+          scope: "https://www.googleapis.com/auth/drive.file",
+          callback: function (r) {
+            if (r.error) { rej(new Error("Google sign-in didn't finish.")); return; }
+            sync.token = r.access_token; sync.tokenExpires = Date.now() + (r.expires_in || 3600) * 1000;
+            sync.connected = true; saveSync(); res();
+          },
+          error_callback: function () { rej(new Error("Google sign-in was closed before it finished.")); }
+        });
+        tokenClient.requestAccessToken({ prompt: sync.everConnected ? "" : "consent" });
+      });
+    });
+  }
+
+  function api(url, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({ Authorization: "Bearer " + sync.token }, opts.headers || {});
+    return fetch(url, opts).then(function (r) {
+      if (r.status === 401) { sync.token = null; saveSync(); var e = new Error("Google sign-in expired. Tap Sync to sign in again."); e.auth = true; throw e; }
+      if (!r.ok) return r.text().then(function (t) { throw new Error("Google Drive error " + r.status + ". " + t.slice(0, 120)); });
+      return r;
+    });
+  }
+  function q(s) { return encodeURIComponent(s); }
+  function findFolder() {
+    if (sync.folderId) return Promise.resolve(sync.folderId);
+    return api(DRIVE + "files?fields=files(id)&q=" + q("name='" + FOLDER_NAME + "' and mimeType='application/vnd.google-apps.folder' and trashed=false")).then(function (r) { return r.json(); }).then(function (j) {
+      if (j.files && j.files.length) return j.files[0].id;
+      return api(DRIVE + "files?fields=id", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: FOLDER_NAME, mimeType: "application/vnd.google-apps.folder" }) })
+        .then(function (r) { return r.json(); }).then(function (f) { return f.id; });
+    }).then(function (id) { sync.folderId = id; saveSync(); return id; });
+  }
+  function listFolder(folderId) {
+    var out = [], page = function (token) {
+      return api(DRIVE + "files?pageSize=1000&fields=nextPageToken,files(id,name)&q=" + q("'" + folderId + "' in parents and trashed=false") + (token ? "&pageToken=" + token : ""))
+        .then(function (r) { return r.json(); }).then(function (j) { out = out.concat(j.files || []); return j.nextPageToken ? page(j.nextPageToken) : out; });
+    };
+    return page(null);
+  }
+  function uploadNew(folderId, name, blob) {
+    var boundary = "kasb" + uid(), meta = JSON.stringify({ name: name, parents: [folderId] });
+    var body = new Blob(["--" + boundary + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + meta + "\r\n--" + boundary + "\r\nContent-Type: " + (blob.type || "application/octet-stream") + "\r\n\r\n", blob, "\r\n--" + boundary + "--"]);
+    return api(DRIVE_UP + "files?uploadType=multipart&fields=id", { method: "POST", headers: { "Content-Type": "multipart/related; boundary=" + boundary }, body: body })
+      .then(function (r) { return r.json(); }).then(function (f) { return f.id; });
+  }
+  function uploadReplace(fileId, blob) {
+    return api(DRIVE_UP + "files/" + fileId + "?uploadType=media", { method: "PATCH", headers: { "Content-Type": blob.type || "application/octet-stream" }, body: blob });
+  }
+  function blobToDataURL(b) { return new Promise(function (res, rej) { var fr = new FileReader(); fr.onload = function () { res(fr.result); }; fr.onerror = rej; fr.readAsDataURL(b); }); }
+
+  function mergeStates(a, b) {
+    var out = blankState();
+    var deleted = {};
+    a.deleted.concat(b.deleted).forEach(function (d) { var k = d.type + ":" + d.id; if (!deleted[k] || deleted[k].at < d.at) deleted[k] = d; });
+    out.deleted = Object.keys(deleted).map(function (k) { return deleted[k]; });
+    COLLECTIONS.forEach(function (k) {
+      var map = {};
+      a[k].concat(b[k]).forEach(function (r) { var cur = map[r.id]; if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) map[r.id] = r; });
+      out[k] = Object.keys(map).map(function (id) { return map[id]; }).filter(function (r) {
+        var d = deleted[k + ":" + r.id]; return !d || d.at < (r.updatedAt || 0);
+      });
+    });
+    var ca = a.carersUpdatedAt >= b.carersUpdatedAt ? a : b; out.carers = ca.carers.slice(); out.carersUpdatedAt = ca.carersUpdatedAt;
+    var sa = a.settingsUpdatedAt >= b.settingsUpdatedAt ? a : b; out.settings = Object.assign({}, sa.settings); out.settingsUpdatedAt = sa.settingsUpdatedAt;
+    return out;
+  }
+
+  function runSync() {
+    if (syncBusy || !sync.connected || !tokenValid() || !state) return Promise.resolve();
+    syncBusy = true; sync.error = ""; refreshSyncUI();
+    var folderId, files;
+    return findFolder().then(function (id) { folderId = id; return listFolder(id); }).then(function (list) {
+      files = {}; list.forEach(function (f) { files[f.name] = f.id; });
+      var dataId = files[DATA_NAME];
+      if (!dataId) return null;
+      return api(DRIVE + "files/" + dataId + "?alt=media").then(function (r) { return r.json(); }).catch(function (e) { if (e.auth) throw e; return null; });
+    }).then(function (remote) {
+      if (remote && Array.isArray(remote.clients)) {
+        state = normalise(mergeStates(state, normalise(remote)));
+        save({ noStamp: true });
+      }
+      var data = new Blob([JSON.stringify(Object.assign({ app: "kas-care-hours", syncedAt: new Date().toISOString() }, state))], { type: "application/json" });
+      return files[DATA_NAME] ? uploadReplace(files[DATA_NAME], data) : uploadNew(folderId, DATA_NAME, data);
+    }).then(function () {
+      // Receipt photos: upload ones Drive doesn't have, download ones this phone doesn't have.
+      var jobs = state.entries.filter(function (e) { return e.photoId; }).map(function (e) {
+        var name = "receipt-" + e.photoId + ".jpg";
+        return getPhoto(e.photoId).catch(function () { return null; }).then(function (local) {
+          if (local && !files[name]) return uploadNew(folderId, name, dataURLToFile(local, name));
+          if (!local && files[name]) return api(DRIVE + "files/" + files[name] + "?alt=media").then(function (r) { return r.blob(); }).then(blobToDataURL).then(function (d) { return putPhoto(e.photoId, d); });
+        });
+      });
+      return Promise.all(jobs);
+    }).then(function () {
+      sync.lastSync = Date.now(); sync.dirty = false; sync.everConnected = true; saveSync();
+    }).catch(function (e) {
+      sync.error = e.message || "Sync didn't finish."; saveSync();
+      if (e.message && /404/.test(e.message)) { sync.folderId = null; saveSync(); }
+    }).then(function () { syncBusy = false; render(); if (sheet) renderSheet(); });
+  }
+  function syncNow() {
+    var go = tokenValid() ? Promise.resolve() : signIn();
+    return go.then(runSync).catch(function (e) { sync.error = e.message; saveSync(); render(); toast(e.message); });
+  }
+  function refreshSyncUI() { var el = document.getElementById("sync-status"); if (el) el.textContent = syncBusy ? "Syncing..." : syncText(); }
+  function ago(t) {
+    var m = Math.round((Date.now() - t) / 60000);
+    if (m < 1) return "just now"; if (m < 60) return m + " min ago";
+    var h = Math.round(m / 60); if (h < 24) return h + (h === 1 ? " hour ago" : " hours ago");
+    return fmtShort(iso(new Date(t)));
+  }
+  function syncText() {
+    if (!sync.connected) return "Not connected";
+    if (syncBusy) return "Syncing...";
+    if (sync.error) return sync.error;
+    return sync.lastSync ? "Last synced " + ago(sync.lastSync) + (sync.dirty ? ", new changes waiting" : "") : "Connected, not synced yet";
   }
 
   // ---------- helpers ----------
@@ -483,6 +678,9 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
       (isThis ? "" : '<button class="btn small" data-action="week-today">Today</button>') +
       '<button class="iconbtn" data-action="week-next" aria-label="Next week">&#8250;</button>' +
       "</header>";
+    if (syncAvailable() && sync.connected && (!tokenValid() || sync.error) && (sync.dirty || !sync.lastSync || Date.now() - sync.lastSync > 864e5)) {
+      h += '<button class="syncbar" data-action="sync-now"><span class="grow">' + (sync.dirty ? "You have changes not saved to Google Drive." : "Sync with Google Drive to keep both phones up to date.") + "</span><b>Sync</b></button>";
+    }
     h += '<div class="summary"><div><b>' + num(totalH) + '</b><span>Hours</span></div><div><b>' + moneyShort(Math.round(totalV)) + '</b><span>Earned</span></div><div><b>' + moneyShort(Math.round(extras)) + '</b><span>Extras</span></div></div>';
     var ids = Object.keys(byClient).sort(function (a, b) { return byClient[b].v - byClient[a].v; });
     if (ids.length) {
@@ -684,6 +882,19 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
       (state.carers.length ? state.carers.map(function (n, i) { return '<button class="chip" data-action="carer-remove" data-i="' + i + '" aria-label="Remove ' + esc(n) + '">' + esc(n) + ' &times;</button>'; }).join("") : '<span class="muted">Nobody added yet.</span>') +
       '</div><div class="row" style="margin-top:12px"><input type="text" id="carer-new" placeholder="Their name" autocomplete="off"><button class="btn" data-action="carer-add">Add</button></div></div>';
     h += '<div class="label">Invoices</div><div class="card" style="padding:14px"><label class="field"><span>Days until payment is due</span><input type="number" id="due-days" inputmode="numeric" min="0" value="' + esc(state.settings.dueDays) + '"></label></div>';
+    if (syncAvailable()) {
+      h += '<div class="label">Google Drive</div><div class="card stack" style="padding:14px">';
+      if (!sync.connected) {
+        h += '<p style="margin:0">Save your hours and receipt photos to your own Google Drive, so they\'re backed up and the same on both phones. The app can only see files it makes.</p>' +
+          '<button class="btn primary block" data-action="sync-connect">Connect Google Drive</button>';
+      } else {
+        h += '<p style="margin:0"><b>Connected.</b> <span id="sync-status" class="muted">' + esc(syncText()) + "</span></p>" +
+          '<button class="btn primary block" data-action="sync-now"' + (syncBusy ? " disabled" : "") + ">Sync now</button>" +
+          '<button class="btn block" data-action="sync-disconnect">Disconnect from Google Drive</button>' +
+          '<p class="muted" style="margin:0;font-size:.85rem">Use the same Google account on both phones. Disconnecting keeps everything on this phone and in Drive.</p>';
+      }
+      h += "</div>";
+    }
     h += '<div class="label">Backup</div><div class="card stack" style="padding:14px">' +
       '<p style="margin:0">Your hours are saved on this phone. Make a backup every week or two and send it to yourself, so nothing is lost if the phone is.</p>' +
       '<button class="btn primary block" data-action="backup-share">Save or send a backup</button>' +
@@ -763,7 +974,7 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
       h += "</div>";
       if (rate) {
         var tmp = { kind: "care", qty: d.qty, price: rate.price, unit: rate.unit, workedWith: d.workedWith, billOthers: d.billOthers };
-        h += '<p class="muted" style="margin:0">Comes to <b class="num">' + money(entryValue(tmp)) + "</b></p>";
+        h += '<p class="muted" style="margin:0">Comes to <b class="num" id="e-total">' + money(entryValue(tmp)) + "</b></p>";
       }
     } else {
       h += '<div class="field"><span>What was it?</span><input type="text" id="e-desc" value="' + esc(d.description) + '" placeholder="e.g. Food shopping" autocomplete="off"><div class="chips">' +
@@ -1155,6 +1366,12 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
         render(); break;
       }
       case "carer-remove": state.carers.splice(+el.dataset.i, 1); save(); render(); break;
+      case "sync-connect": syncNow(); break;
+      case "sync-now": syncNow(); break;
+      case "sync-disconnect":
+        if (!el.classList.contains("armed")) { el.classList.add("armed"); el.classList.add("danger"); el.textContent = "Tap again to disconnect"; break; }
+        try { if (sync.token && window.google && google.accounts) google.accounts.oauth2.revoke(sync.token, function () {}); } catch (e3) {}
+        sync = {}; saveSync(); render(); toast("Disconnected. Your data is still on this phone and in Drive."); break;
       case "backup-share": {
         openSheet("backup", { text: null });
         var bd = sheet.data;
@@ -1168,6 +1385,7 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
         if (!el.classList.contains("armed")) { el.classList.add("armed"); el.textContent = "Tap again to erase everything"; break; }
         try { localStorage.removeItem(KEY); } catch (e2) {}
         clearPhotos();
+        sync = {}; saveSync(); snap = null;
         state = null; view.name = "week"; render(); break;
     }
   });
@@ -1181,7 +1399,7 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
       var fr = new FileReader(); fr.onload = function () { doRestore(String(fr.result)); }; fr.readAsText(t.files[0]); return;
     }
     if (t.id === "due-days") { state.settings.dueDays = Math.max(0, parseInt(t.value, 10) || 0); save(); toast("Saved"); return; }
-    if (sheet && sheet.type === "entry" && (t.id === "e-billothers" || t.id === "e-qty")) { readEntryInputs(); renderSheet(); return; }
+    if (sheet && sheet.type === "entry" && t.id === "e-billothers") { readEntryInputs(); renderSheet(); return; }
     if (t.id === "e-photo" && t.files && t.files[0] && sheet && sheet.type === "entry") {
       readEntryInputs(); sheet.data.photoBusy = true; renderSheet();
       var d = sheet.data;
@@ -1189,7 +1407,18 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
         .catch(function () { d.photoBusy = false; if (sheet && sheet.data === d) renderSheet(); toast("That file isn't a photo the app can read."); });
       return;
     }
-    if (sheet && sheet.type === "invoice" && (t.dataset.skip || t.id === "i-from" || t.id === "i-to")) { readInvoiceInputs(); renderSheet(); return; }
+    if (sheet && sheet.type === "invoice" && t.dataset.skip) { readInvoiceInputs(); renderSheet(); return; }
+  });
+  // Typing must not re-render the sheet: a re-render on blur would swallow the tap on Save.
+  document.addEventListener("input", function (ev) {
+    var t = ev.target;
+    if (sheet && sheet.type === "entry" && t.id === "e-qty") {
+      readEntryInputs();
+      var d = sheet.data, c = client(d.clientId), r = c && c.rates.find(function (x) { return x.id === d.rateId; }), out = document.getElementById("e-total");
+      if (r && out) out.textContent = money(entryValue({ kind: "care", qty: d.qty, price: r.price, unit: r.unit, workedWith: d.workedWith, billOthers: d.billOthers }));
+      document.querySelectorAll('.sheet [data-action="e-qty"]').forEach(function (b) { b.setAttribute("aria-pressed", String(+b.dataset.v === +d.qty)); });
+    }
+    if (sheet && sheet.type === "invoice" && (t.id === "i-from" || t.id === "i-to") && t.value) { readInvoiceInputs(); renderSheet(); }
   });
   document.addEventListener("keydown", function (ev) {
     if (ev.key === "Escape" && document.getElementById("photo-root").innerHTML) { closeViewer(); return; }
@@ -1216,5 +1445,9 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
 
   load();
   render();
+  if (syncAvailable() && sync.connected && tokenValid()) runSync();
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible" && syncAvailable() && sync.connected && tokenValid() && (sync.dirty || Date.now() - (sync.lastSync || 0) > 300000)) runSync();
+  });
 })();
 </script>
