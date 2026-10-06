@@ -66,6 +66,8 @@ header.top {
 .group { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
 .group .btn { width: 100%; }
 .group.pair { flex-direction: row; }
+.ocrnote { margin: 0; font-size: .95rem; color: var(--muted); }
+.ocrnote.ok { color: var(--warn); font-weight: 700; background: var(--warn-soft); border-radius: 10px; padding: 8px 12px; }
 .weeknav { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
 .weeknav .btn { min-height: 52px; padding-inline: 8px; font-size: 1rem; }
 .bigbtn { min-height: 60px; font-size: 1.2rem; border-radius: 16px; margin-bottom: 14px; }
@@ -295,7 +297,7 @@ nav.tabs button[aria-current="page"] svg { background: var(--accent-soft); }
 .pdfpages p { color: #fff; }
 pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-family: var(--font-body); font-size: .9rem; margin: 0; max-height: 220px; overflow: auto; }
 @media (prefers-reduced-motion: no-preference) {
-  .sheet { animation: rise .22s ease-out; }
+  .sheet.opening { animation: rise .22s ease-out; }
   @keyframes rise { from { transform: translateY(40px); opacity: .6; } to { transform: none; opacity: 1; } }
 }
 </style>
@@ -472,6 +474,68 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
     });
     return pdfjsLoading;
   }
+  // Receipt reading: Tesseract runs on the phone itself (nothing is sent anywhere). Files are served from the app
+  // and only downloaded the first time a receipt is read. The amount it finds is a suggestion she can change.
+  var TESS = "vendor/tesseract/", tessWorker = null;
+  function loadScript(src) {
+    return new Promise(function (res, rej) { var sc = document.createElement("script"); sc.src = src; sc.onload = res; sc.onerror = function () { sc.remove(); rej(new Error("load")); }; document.head.appendChild(sc); });
+  }
+  function getOcr() {
+    if (!tessWorker) tessWorker = (window.Tesseract ? Promise.resolve() : loadScript(TESS + "tesseract.min.js")).then(function () {
+      return window.Tesseract.createWorker("eng", 1, { workerPath: TESS + "worker.min.js", corePath: TESS + "core/", langPath: TESS + "lang/", workerBlobURL: false, cacheMethod: "none" });
+    }).catch(function (e) { tessWorker = null; throw e; });
+    return tessWorker;
+  }
+  // Big, grey, high-contrast copy of the photo: Tesseract reads that far better than a colour phone photo.
+  function ocrCanvas(file) {
+    return new Promise(function (res, rej) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var k = Math.min(1, 2200 / Math.max(img.naturalWidth, img.naturalHeight));
+        var c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+        var x = c.getContext("2d"); x.drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+        var px = x.getImageData(0, 0, c.width, c.height), a = px.data, lo = 255, hi = 0, i, g;
+        for (i = 0; i < a.length; i += 4) { g = a[i] * .3 + a[i + 1] * .59 + a[i + 2] * .11; a[i] = g; if (g < lo) lo = g; if (g > hi) hi = g; }
+        var span = Math.max(1, hi - lo);
+        for (i = 0; i < a.length; i += 4) { g = (a[i] - lo) * 255 / span; a[i] = a[i + 1] = a[i + 2] = g; }
+        x.putImageData(px, 0, 0); res(c);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); rej(new Error("not an image")); };
+      img.src = url;
+    });
+  }
+  function readReceiptTotal(file) {
+    // Read it as one block first (keeps prices on the same line as their labels); if no total turns up, let Tesseract find the layout itself.
+    return Promise.all([getOcr(), ocrCanvas(file)]).then(function (r) {
+      var w = r[0], c = r[1];
+      var pass = function (psm) { return w.setParameters({ tessedit_pageseg_mode: psm }).then(function () { return w.recognize(c, { rotateAuto: true }); }).then(function (out) { window.lastOcrText = out.data.text; return findTotal(out.data.text || ""); }); };
+      return pass("6").then(function (v) { return v != null ? v : pass("3"); });
+    });
+  }
+  // Picks the amount on the line that most looks like the total. Returns null rather than guess wildly.
+  function findTotal(text) {
+    var lines = text.split(/\n/).map(function (l) {
+      return l.replace(/(\d)\s*[.,·]\s*(\d{2})(?!\d)/g, "$1.$2").replace(/[£€]\s+/g, "£");
+    });
+    var amounts = function (l) { var m = l.match(/(?:^|[^\d.])(\d{1,4}\.\d{2})(?![\d])/g) || []; return m.map(function (x) { return parseFloat(x.replace(/[^\d.]/g, "")); }).filter(function (v) { return v > 0 && v < 5000; }); };
+    var best = null;
+    lines.forEach(function (l, i) {
+      var t = l.toLowerCase(), score = 0;
+      if (/sub\s*-?\s*total|savings?|discount|you saved|\b(vat|tax|tip|qty)\b|change|\bitems?\b|points|cashback/.test(t)) score = 0;
+      else if (/grand\s*total|total\s*(to\s*)?pay|amount\s*(due|paid|to pay)|balance\s*(due|to pay)|total\s*due|to pay\b/.test(t)) score = 4;
+      else if (/total/.test(t)) score = 3;
+      else if (/\b(card|visa|mastercard|debit|credit|contactless|amex|apple pay|google pay|cash|paid|sale)\b/.test(t)) score = 2;
+      if (!score) return;
+      var vals = amounts(l); if (!vals.length && lines[i + 1]) vals = amounts(lines[i + 1]);
+      if (!vals.length) return;
+      var v = vals[vals.length - 1];
+      if (!best || score > best.score || (score === best.score && v > best.v)) best = { score: score, v: v };
+    });
+    if (best) return best.v;
+    var pounds = []; lines.forEach(function (l) { (l.match(/£\s?(\d{1,4}\.\d{2})/g) || []).forEach(function (x) { pounds.push(parseFloat(x.replace(/[^\d.]/g, ""))); }); });
+    return pounds.length ? Math.max.apply(null, pounds) : null;
+  }
+
   function openPdf(id, name) {
     var root = document.getElementById("photo-root");
     root.dataset.name = name || "invoice.pdf";
@@ -1039,8 +1103,8 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
     else if (sheet.type === "copy") inner = sheetCopy();
     else if (sheet.type === "restore") inner = sheetRestore();
     else if (sheet.type === "backup") inner = sheetBackup();
-    var scroll = root.querySelector(".sheet") ? root.querySelector(".sheet").scrollTop : 0;
-    root.innerHTML = '<div class="sheet-wrap" data-action="sheet-bg"><div class="sheet" role="dialog" aria-modal="true">' + inner.replace(/^<h2>([\s\S]*?)<\/h2>/, '<div class="sheettop"><h2>$1</h2><button class="closebtn" data-action="sheet-close">&#10005; Close</button></div>') + "</div></div>";
+    var scroll = root.querySelector(".sheet") ? root.querySelector(".sheet").scrollTop : 0, fresh = !root.querySelector(".sheet");
+    root.innerHTML = '<div class="sheet-wrap" data-action="sheet-bg"><div class="sheet' + (fresh ? " opening" : "") + '" role="dialog" aria-modal="true">' + inner.replace(/^<h2>([\s\S]*?)<\/h2>/, '<div class="sheettop"><h2>$1</h2><button class="closebtn" data-action="sheet-close">&#10005; Close</button></div>') + "</div></div>";
     var s = root.querySelector(".sheet"); if (s) s.scrollTop = scroll;
     fillPhotos(root);
   }
@@ -1098,13 +1162,18 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
     } else {
       h += '<div class="field"><span>What did you pay for?</span><input type="text" id="e-desc" value="' + esc(d.description) + '" placeholder="e.g. Food shopping" autocomplete="off"><div class="chips">' +
         ["Food shopping", "Hospital visit", "Prescription", "Taxi or fuel"].map(function (s) { return '<button class="chip" data-action="e-desc" data-v="' + s + '">' + s + "</button>"; }).join("") + "</div></div>";
-      h += '<div class="field"><span>How much? (£)</span><input type="number" id="e-amount" inputmode="decimal" step="0.01" min="0" value="' + esc(d.amount) + '" placeholder="0.00"></div>';
-      h += '<div class="field"><span>Receipt photo <span class="hint">(optional)</span></span>';
+      h += '<div class="field"><span>Receipt photo <span class="hint">(optional, the app will try to read the total)</span></span>';
       if (d.photoData || d.photoId) {
         h += '<div class="receipt"><button class="thumb" data-action="e-photo-view" aria-label="View receipt"><img alt="Receipt" ' + (d.photoData ? 'src="' + d.photoData + '"' : 'data-photo="' + esc(d.photoId) + '"') + '></button>' +
           '<div class="stack grow"><label class="btn small" for="e-photo">Replace photo</label><button class="btn small" data-action="e-photo-remove">Remove photo</button></div></div>';
       } else h += '<label class="btn block" for="e-photo">' + (d.photoBusy ? "Adding photo..." : "Take or choose a photo") + "</label>";
       h += '<input type="file" id="e-photo" accept="image/*" hidden></div>';
+      var ocrNote = "";
+      if (d.ocr === "reading") ocrNote = '<p class="ocrnote">Reading the total from the receipt\u2026 The first time can take a minute.</p>';
+      else if (d.ocr === "found" && d.amountAuto && +d.amount === +d.ocrValue) ocrNote = '<p class="ocrnote ok">Filled in from the receipt. Please check it matches, and change it if not.</p>';
+      else if (d.ocr === "found") ocrNote = '<p class="ocrnote">The receipt says ' + money(d.ocrValue) + '. <button class="linkbtn" data-action="e-ocr-use">Use ' + money(d.ocrValue) + "</button></p>";
+      else if (d.ocr === "none" || d.ocr === "failed") ocrNote = '<p class="ocrnote">Couldn\'t read the total from this photo. Please type it in.</p>';
+      h += '<div class="field"><span>How much? (£)</span><input type="number" id="e-amount" inputmode="decimal" step="0.01" min="0" value="' + esc(d.amount) + '" placeholder="0.00">' + ocrNote + "</div>";
     }
     if (d.note || d.showNote) h += '<label class="field"><span>Note <span class="hint">(only you see this)</span></span><textarea id="e-note">' + esc(d.note) + "</textarea></label>";
     else h += '<button class="linkbtn" style="align-self:flex-start" data-action="e-note-show">+ Add a note</button>';
@@ -1422,7 +1491,8 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
         sheet.data.addingCarer = false; renderSheet(); break;
       }
       case "e-desc": sheet.data.description = el.dataset.v; renderSheet(); break;
-      case "e-photo-remove": sheet.data.photoData = null; sheet.data.photoId = null; renderSheet(); break;
+      case "e-photo-remove": sheet.data.photoData = null; sheet.data.photoId = null; sheet.data.ocr = null; renderSheet(); break;
+      case "e-ocr-use": sheet.data.amount = sheet.data.ocrValue.toFixed(2); sheet.data.amountAuto = true; renderSheet(); break;
       case "e-photo-view":
         if (sheet.data.photoData) openViewer(sheet.data.photoData);
         else if (sheet.data.photoId) getPhoto(sheet.data.photoId).then(function (v) { if (v) openViewer(v); });
@@ -1542,8 +1612,18 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
     if (t.id === "e-photo" && t.files && t.files[0] && sheet && sheet.type === "entry") {
       readEntryInputs(); sheet.data.photoBusy = true; renderSheet();
       var d = sheet.data;
-      shrinkImage(t.files[0]).then(function (data) { d.photoData = data; d.photoBusy = false; if (sheet && sheet.data === d) renderSheet(); })
-        .catch(function () { d.photoBusy = false; if (sheet && sheet.data === d) renderSheet(); toast("That file isn't a photo the app can read."); });
+      var file = t.files[0];
+      shrinkImage(file).then(function (data) {
+        d.photoData = data; d.photoBusy = false; d.ocr = "reading"; d.ocrValue = null;
+        if (sheet && sheet.data === d) renderSheet();
+        readReceiptTotal(file).then(function (v) {
+          if (!(sheet && sheet.data === d)) return;
+          readEntryInputs();
+          d.ocrValue = v; d.ocr = v ? "found" : "none";
+          if (v && (!d.amount || d.amountAuto)) { d.amount = v.toFixed(2); d.amountAuto = true; }
+          renderSheet();
+        }).catch(function () { if (sheet && sheet.data === d) { readEntryInputs(); d.ocr = "failed"; renderSheet(); } });
+      }).catch(function () { d.photoBusy = false; if (sheet && sheet.data === d) renderSheet(); toast("That file isn't a photo the app can read."); });
       return;
     }
     if (sheet && sheet.type === "invoice" && t.dataset.skip) { readInvoiceInputs(); renderSheet(); return; }
@@ -1557,6 +1637,7 @@ pre.copytext { white-space: pre-wrap; background: var(--surface); border: 1px so
       if (r && out) out.textContent = money(entryValue({ kind: "care", qty: d.qty, price: r.price, unit: r.unit, workedWith: d.workedWith, billOthers: d.billOthers }));
       document.querySelectorAll('.sheet [data-action="e-qty"]').forEach(function (b) { b.setAttribute("aria-pressed", String(+b.dataset.v === +d.qty)); });
     }
+    if (sheet && sheet.type === "entry" && t.id === "e-amount") sheet.data.amountAuto = false;
     if (sheet && sheet.type === "invoice" && (t.id === "i-from" || t.id === "i-to") && t.value) { readInvoiceInputs(); renderSheet(); }
   });
   document.addEventListener("keydown", function (ev) {
